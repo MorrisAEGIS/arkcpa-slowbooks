@@ -1,0 +1,17 @@
+[Unit]
+Description=ArkCPA SlowBooks Pro 2026
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/novaadmin/arkcpa-slowbooks
+ExecStart=/usr/bin/docker compose -f docker-compose.ark.yml up -d --no-build
+ExecStop=/usr/bin/docker compose -f docker-compose.ark.yml stop
+TimeoutStartSec=180
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target

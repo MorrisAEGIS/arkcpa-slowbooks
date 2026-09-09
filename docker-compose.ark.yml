@@ -1,0 +1,84 @@
+name: arkcpa-slowbooks
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=100
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?missing POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?missing POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?missing POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  slowbooks:
+    image: arkcpa-slowbooks:2.9.4-0cb9188
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "3001"
+      APP_DEBUG: "false"
+      APP_WORKERS: ${APP_WORKERS:-2}
+      SLOWBOOKS_PRIVATE_NETWORK: "1"
+      FORCE_HTTPS: "true"
+      FORWARDED_ALLOW_IPS: "*"
+      TRUST_PROXY_HEADERS: "true"
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS}
+      SESSION_IDLE_TIMEOUT_SECONDS: ${SESSION_IDLE_TIMEOUT_SECONDS:-14400}
+      RATE_LIMIT_ENABLED: "1"
+      PAYROLL_ENCRYPTION_SECRET: ${PAYROLL_ENCRYPTION_SECRET:?missing PAYROLL_ENCRYPTION_SECRET}
+      SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:?missing SESSION_SECRET_KEY}
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?missing SETTINGS_ENCRYPTION_KEY}
+      COMPANY_NAME: ${COMPANY_NAME:-My Company}
+      EMPLOYER_STATE: ${EMPLOYER_STATE:-WA}
+      SUTA_RATE: ${SUTA_RATE:-0.012}
+    ports:
+      - "127.0.0.1:${APP_PUBLISH_PORT:?missing APP_PUBLISH_PORT}:3001"
+    volumes:
+      - slowbooks_uploads:/app/app/static/uploads
+      - slowbooks_backups:/app/backups
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request,sys;
+          req=urllib.request.Request('http://127.0.0.1:3001/health',headers={'Host':'arkcpa.magaenergy.ai','X-Forwarded-Proto':'https'});
+          sys.exit(0) if urllib.request.urlopen(req,timeout=3).status==200 else sys.exit(1)
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 4
+
+volumes:
+  postgres_data:
+  slowbooks_uploads:
+  slowbooks_backups:
