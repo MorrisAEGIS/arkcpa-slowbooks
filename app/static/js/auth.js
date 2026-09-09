@@ -19,6 +19,7 @@
     const AUTH_STATUS_URL = "/api/auth/status";
     const AUTH_SETUP_URL = "/api/auth/setup";
     const AUTH_LOGIN_URL = "/api/auth/login";
+    const AUTHENTIK_LOGIN_URL = "/api/auth/authentik";
 
     const OVERLAY_ID = "auth-overlay";
     const MIN_PASSWORD_LEN = 8;
@@ -36,6 +37,10 @@
             return { authenticated: false, setup_needed: false };
         }
     }
+
+    // One shared startup probe prevents the auth overlay and the main SPA
+    // from racing each other and firing protected dashboard calls first.
+    const initialStatus = checkStatus();
 
     async function postJSON(url, body) {
         const res = await fetch(url, {
@@ -182,42 +187,67 @@
     // exists, the login form gains a username field. Single-user installs
     // never see it.
     let multiUser = false;
+    let authentikEnabled = false;
+    let localPasswordLogin = true;
 
     function loginViewHTML() {
-        return (
-            '<form id="auth-form" ' +
-            'style="background:#fff;color:#111;padding:32px 28px;border-radius:8px;' +
-            'min-width:340px;max-width:400px;width:100%;' +
-            'box-shadow:0 20px 60px rgba(0,0,0,0.4);">' +
-            '<h2 style="margin:0 0 6px;font-size:20px;">Unlock Slowbooks</h2>' +
-            '<p style="margin:0 0 20px;color:#555;font-size:13px;line-height:1.5;">' +
-            (multiUser
-                ? "Sign in to continue."
-                : "Enter your password to continue.") +
-            "</p>" +
-            (multiUser
+        const authentikButton = authentikEnabled
+            ? '<a id="authentik-login" href="' + AUTHENTIK_LOGIN_URL +
+              '" style="' + primaryButtonStyle() +
+              'display:block;box-sizing:border-box;text-align:center;text-decoration:none;">' +
+              'Continue with Authentik</a>'
+            : "";
+        const divider = authentikEnabled && localPasswordLogin
+            ? '<div style="display:flex;align-items:center;gap:10px;margin:18px 0;color:#888;font-size:11px;">' +
+              '<span style="height:1px;background:#ddd;flex:1;"></span>LOCAL RECOVERY' +
+              '<span style="height:1px;background:#ddd;flex:1;"></span></div>'
+            : "";
+        const passwordFields = localPasswordLogin
+            ? (multiUser
                 ? field("auth-username", "Username", {
                       required: true,
                       autocomplete: "username",
                   }) + '<div style="height:10px"></div>'
                 : "") +
-            field("auth-password", "Password", {
-                type: "password",
-                required: true,
-                autocomplete: "current-password",
-            }) +
-            '<div style="height:14px"></div>' +
-            '<button type="submit" id="auth-submit" style="' +
-            primaryButtonStyle() +
-            '">Unlock</button>' +
+              field("auth-password", "Password", {
+                  type: "password",
+                  required: true,
+                  autocomplete: "current-password",
+              }) +
+              '<div style="height:14px"></div>' +
+              '<button type="submit" id="auth-submit" style="' +
+              primaryButtonStyle() + '">Unlock</button>'
+            : "";
+        const setupLink = localPasswordLogin
+            ? '<div style="margin-top:16px;text-align:center;">' +
+              '<button type="button" id="auth-switch-setup" style="' +
+              linkButtonStyle() + '">First time? Set up Slowbooks →</button></div>'
+            : "";
+        const authError = new URLSearchParams(window.location.search).get("auth_error");
+        const errorMessages = {
+            unavailable: "Authentik is temporarily unavailable. Try again shortly.",
+            denied: "Authentik sign-in was cancelled.",
+            invalid_state: "That sign-in expired. Start again.",
+            forbidden: "This Authentik account is not approved for Ark CPA.",
+            failed: "Ark CPA could not complete sign-in. Try again.",
+        };
+        return (
+            '<form id="auth-form" ' +
+            'style="background:#fff;color:#111;padding:32px 28px;border-radius:8px;' +
+            'min-width:340px;max-width:400px;width:100%;' +
+            'box-shadow:0 20px 60px rgba(0,0,0,0.4);">' +
+            '<div style="font-size:11px;font-weight:700;letter-spacing:.12em;color:#0066cc;margin-bottom:8px;">ARK CPA</div>' +
+            '<h2 style="margin:0 0 6px;font-size:20px;">Unlock SlowBooks</h2>' +
+            '<div style="font-size:11px;color:#777;margin:-2px 0 14px;">MAGA Energy accounting</div>' +
+            '<p style="margin:0 0 20px;color:#555;font-size:13px;line-height:1.5;">' +
+            (authentikEnabled ? "Use your ARK identity to continue." :
+                (multiUser ? "Sign in to continue." : "Enter your password to continue.")) +
+            "</p>" +
+            authentikButton + divider + passwordFields +
             '<div id="auth-error" style="' +
             errorBoxStyle() +
-            '"></div>' +
-            '<div style="margin-top:16px;text-align:center;">' +
-            '<button type="button" id="auth-switch-setup" style="' +
-            linkButtonStyle() +
-            '">First time? Set up Slowbooks →</button>' +
-            "</div>" +
+            '">' + escapeText(errorMessages[authError] || "") + '</div>' +
+            setupLink +
             "</form>"
         );
     }
@@ -230,14 +260,23 @@
         const btn = overlay.querySelector("#auth-submit");
         const switchBtn = overlay.querySelector("#auth-switch-setup");
 
-        (userInput || input).focus();
+        const authentikLink = overlay.querySelector("#authentik-login");
+        if (authentikLink) {
+            authentikLink.href = AUTHENTIK_LOGIN_URL + "?next=%2F";
+            authentikLink.focus();
+        } else if (userInput || input) {
+            (userInput || input).focus();
+        }
 
-        switchBtn.addEventListener("click", function () {
-            renderView("setup", onSuccess);
-        });
+        if (switchBtn) {
+            switchBtn.addEventListener("click", function () {
+                renderView("setup", onSuccess);
+            });
+        }
 
         form.addEventListener("submit", async function (e) {
             e.preventDefault();
+            if (!input || !btn) return;
             errBox.textContent = "";
             btn.disabled = true;
             btn.textContent = "...";
@@ -441,8 +480,10 @@
         if (document.getElementById(OVERLAY_ID)) return;
         authPromptInFlight = true;
         try {
-            const status = await checkStatus();
+            const status = await initialStatus;
             multiUser = status.multi_user === true;
+            authentikEnabled = status.authentik_enabled === true;
+            localPasswordLogin = status.local_password_login !== false;
             existingCompany = {
                 name: status.company_name || "",
                 hasData: status.has_data === true,
@@ -456,6 +497,7 @@
 
     // Expose globals so api.js can prompt on 401
     window.SlowbooksAuth = {
+        ready: initialStatus,
         promptAuth: promptAuth,
         // Back-compat: explicit view requests still work
         promptLogin: function () {

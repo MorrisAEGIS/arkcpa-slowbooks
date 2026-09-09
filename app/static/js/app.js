@@ -519,7 +519,14 @@ const App = {
         $$('[data-business-only]').forEach(el => { el.hidden = np; });
     },
 
-    init() {
+    async init() {
+        // auth.js owns the first status probe and login overlay. Do not boot
+        // protected routes until that probe says this browser has a session.
+        const authStatus = window.SlowbooksAuth
+            ? await window.SlowbooksAuth.ready
+            : { authenticated: true };
+        if (!authStatus.authenticated) return;
+
         window.addEventListener('hashchange', () => App.navigate(location.hash));
 
         // Load saved theme

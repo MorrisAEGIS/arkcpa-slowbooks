@@ -10,9 +10,14 @@
 # how you become authenticated in the first place.
 # ============================================================================
 
+import logging
+import secrets
+from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import RedirectResponse
 from pydantic import Field
 from app.schemas.common import StrictModel
 from sqlalchemy.orm import Session
@@ -29,8 +34,92 @@ from app.services.auth import (
 from app.services.rate_limit import limiter
 from app.services.request_utils import client_ip as _client_ip
 from app.services.settings_service import set_setting
+from app.services.authentik_oidc import (
+    build_authorization_url,
+    create_oidc_attempt,
+    discover_oidc,
+    exchange_authorization_code,
+    get_oidc_config,
+    is_oidc_enabled,
+    verify_id_token,
+)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+logger = logging.getLogger(__name__)
+
+_OIDC_COOKIE_MAX_AGE = 10 * 60
+_OIDC_COOKIE_PREFIX = "arkcpa-oidc-"
+
+
+def _is_secure_request(request: Request) -> bool:
+    forwarded = (request.headers.get("x-forwarded-proto") or "").split(",", 1)[0]
+    return forwarded.strip().lower() == "https" or request.url.scheme == "https"
+
+
+def _is_loopback_request(request: Request) -> bool:
+    forwarded = (request.headers.get("x-forwarded-host") or "").split(",", 1)[0]
+    if forwarded.strip():
+        host = urlsplit("//" + forwarded.strip()).hostname or ""
+    else:
+        host = request.url.hostname or ""
+    host = host.lower()
+    return host in {"127.0.0.1", "localhost", "::1", "testserver"}
+
+
+def _safe_next(value: str | None) -> str:
+    if not value or not value.startswith("/") or value.startswith("//"):
+        return "/"
+    return value
+
+
+def _cookie_name(name: str, secure: bool) -> str:
+    return (
+        f"__Host-{_OIDC_COOKIE_PREFIX}{name}"
+        if secure
+        else f"{_OIDC_COOKIE_PREFIX}{name}"
+    )
+
+
+def _set_attempt_cookie(
+    response: RedirectResponse, name: str, value: str, secure: bool
+) -> None:
+    response.set_cookie(
+        _cookie_name(name, secure),
+        value,
+        max_age=_OIDC_COOKIE_MAX_AGE,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        path="/",
+    )
+
+
+def _clear_attempt_cookies(response: RedirectResponse, secure: bool) -> None:
+    for name in ("state", "nonce", "verifier", "return"):
+        response.delete_cookie(
+            _cookie_name(name, secure),
+            path="/",
+            secure=secure,
+            httponly=True,
+            samesite="lax",
+        )
+
+
+def _app_redirect(path: str, error: str | None = None) -> str:
+    try:
+        config = get_oidc_config()
+        redirect = urlsplit(config.redirect_uri)
+        query = f"auth_error={error}" if error else ""
+        return urlunsplit((redirect.scheme, redirect.netloc, path, query, ""))
+    except ValueError:
+        return f"{path}?auth_error={error}" if error else path
+
+
+def _oidc_error(secure: bool, code: str) -> RedirectResponse:
+    response = RedirectResponse(_app_redirect("/", code), status_code=302)
+    _clear_attempt_cookies(response, secure)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 def _record_login_attempt(db: Session, request: Request, success: bool) -> None:
@@ -107,11 +196,16 @@ def auth_status(request: Request, db: Session = Depends(get_db)):
     current session is authenticated."""
     authenticated = request.session.get("authenticated") is True
     setup_needed = not password_is_set(db)
+    oidc_enabled = is_oidc_enabled()
     out = {
         "setup_needed": setup_needed,
         "authenticated": authenticated,
         # Login UI shows a username field only when this is true.
         "multi_user": is_multi_user(db),
+        "authentik_enabled": oidc_enabled,
+        # Password auth remains a loopback-only break-glass path whenever
+        # the public deployment has Authentik enabled.
+        "local_password_login": not oidc_enabled or _is_loopback_request(request),
     }
     if setup_needed:
         # First-run setup can be reached on a file that already holds a
@@ -133,6 +227,99 @@ def auth_status(request: Request, db: Session = Depends(get_db)):
     return out
 
 
+@router.get("/authentik")
+async def authentik_login(request: Request):
+    """Start Authorization Code + PKCE against the governed Ark Authentik app."""
+    secure = _is_secure_request(request)
+    if not is_oidc_enabled():
+        return _oidc_error(secure, "unavailable")
+    try:
+        config = get_oidc_config()
+        discovery = await discover_oidc(config)
+        attempt = create_oidc_attempt()
+        response = RedirectResponse(
+            build_authorization_url(discovery, config, attempt), status_code=302
+        )
+        for name, value in (
+            ("state", attempt.state),
+            ("nonce", attempt.nonce),
+            ("verifier", attempt.verifier),
+            ("return", _safe_next(request.query_params.get("next"))),
+        ):
+            _set_attempt_cookie(response, name, value, secure)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    except Exception:
+        logger.exception("Authentik OIDC authorization start failed")
+        return _oidc_error(secure, "unavailable")
+
+
+@router.get("/authentik/callback")
+async def authentik_callback(request: Request, db: Session = Depends(get_db)):
+    """Verify the Authentik callback, then issue a normal SlowBooks session."""
+    secure = _is_secure_request(request)
+    if request.query_params.get("error"):
+        return _oidc_error(secure, "denied")
+    if not is_oidc_enabled():
+        return _oidc_error(secure, "unavailable")
+
+    state = request.query_params.get("state") or ""
+    code = request.query_params.get("code") or ""
+    expected_state = request.cookies.get(_cookie_name("state", secure)) or ""
+    nonce = request.cookies.get(_cookie_name("nonce", secure)) or ""
+    verifier = request.cookies.get(_cookie_name("verifier", secure)) or ""
+    return_to = _safe_next(request.cookies.get(_cookie_name("return", secure)))
+    if (
+        not code
+        or not state
+        or not expected_state
+        or not nonce
+        or not verifier
+        or not secrets.compare_digest(state, expected_state)
+    ):
+        return _oidc_error(secure, "invalid_state")
+
+    try:
+        config = get_oidc_config()
+        discovery = await discover_oidc(config)
+        id_token = await exchange_authorization_code(code, verifier, discovery, config)
+        claims = await verify_id_token(id_token, nonce, discovery, config)
+
+        from app.models.users import ROLE_ADMIN, User
+
+        user = (
+            db.query(User)
+            .filter(User.role == ROLE_ADMIN, User.is_active)
+            .order_by(User.id)
+            .first()
+        ) or ensure_admin_user(db)
+        if user is None:
+            raise RuntimeError("SlowBooks local admin has not been initialized")
+        db.info["acting_username"] = user.username
+        user.last_login_at = datetime.now(timezone.utc)
+        db.commit()
+        _record_login_attempt(db, request, success=True)
+
+        request.session.clear()
+        request.session["authenticated"] = True
+        _stash_user(request, user)
+        request.session["oidc_sub"] = str(claims["sub"])
+        request.session["oidc_email"] = str(claims["email"]).strip().lower()
+
+        response = RedirectResponse(_app_redirect(return_to), status_code=302)
+        _clear_attempt_cookies(response, secure)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    except PermissionError:
+        _record_login_attempt(db, request, success=False)
+        logger.warning("Authentik OIDC login rejected by the required-group policy")
+        return _oidc_error(secure, "forbidden")
+    except Exception:
+        _record_login_attempt(db, request, success=False)
+        logger.exception("Authentik OIDC callback failed")
+        return _oidc_error(secure, "failed")
+
+
 @router.post("/setup")
 def setup(
     payload: SetupPayload,
@@ -142,6 +329,11 @@ def setup(
     """First-run setup: store company/operator info and the operator password
     in one transaction, then issue a session. Returns 409 if a password is
     already set."""
+    if is_oidc_enabled() and not _is_loopback_request(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Initial setup is only available from loopback",
+        )
     if password_is_set(db):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -217,6 +409,11 @@ def login(
     failure — is recorded in `login_attempts` so a slow patient attacker
     pacing requests under the rate limit still shows up in the audit log.
     """
+    if is_oidc_enabled() and not _is_loopback_request(request):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Use Authentik to sign in",
+        )
     if not password_is_set(db):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
