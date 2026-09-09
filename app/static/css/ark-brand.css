@@ -1,0 +1,187 @@
+/* ARK product foundation. SlowBooks workflow styles remain in style.css. */
+@font-face {
+    font-family: "Ark Sans";
+    src: url("/static/fonts/Inter-Regular.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Ark Sans";
+    src: url("/static/fonts/Inter-Medium.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Ark Sans";
+    src: url("/static/fonts/Inter-SemiBold.woff2") format("woff2");
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+}
+
+:root {
+    --ark-ink: oklch(94% 0.012 92);
+    --ark-ink-muted: oklch(71% 0.018 92);
+    --ark-ink-faint: oklch(55% 0.016 92);
+    --ark-canvas: oklch(15% 0.012 120);
+    --ark-surface: oklch(19% 0.014 120);
+    --ark-surface-raised: oklch(23% 0.016 120);
+    --ark-line: oklch(35% 0.018 100);
+    --ark-line-faint: oklch(27% 0.014 110);
+    --ark-gold: oklch(78% 0.105 84);
+    --ark-gold-muted: oklch(64% 0.075 84);
+    --ark-action: oklch(78% 0.11 158);
+    --ark-action-strong: oklch(70% 0.125 158);
+    --ark-danger: oklch(68% 0.18 28);
+    --ark-focus: oklch(84% 0.13 92);
+    --ark-font: "Ark Sans", "Segoe UI", sans-serif;
+    --ark-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+body.auth-pending {
+    background: var(--ark-canvas);
+}
+
+body.auth-pending #app,
+body.auth-pending #splash,
+body.auth-pending #modal-overlay,
+body.auth-pending #toast-container {
+    display: none !important;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.ark-mark {
+    --ark-mark-size: 72px;
+    position: relative;
+    isolation: isolate;
+    display: inline-block;
+    width: var(--ark-mark-size);
+    height: var(--ark-mark-size);
+    flex: 0 0 auto;
+    overflow: hidden;
+    aspect-ratio: 1;
+    border: 1px solid transparent;
+    border-radius: 20%;
+    background:
+        linear-gradient(#12100d, #12100d) padding-box,
+        conic-gradient(
+            from var(--ark-orbit, 0deg),
+            transparent 0%,
+            rgba(255, 255, 255, 0.05) 5%,
+            rgba(255, 255, 255, 0.95) 8%,
+            rgba(200, 230, 255, 0.8) 12%,
+            rgba(150, 200, 255, 0.4) 16%,
+            transparent 22% 50%,
+            rgba(200, 220, 255, 0.15) 55%,
+            transparent 60%
+        ) border-box;
+    box-shadow: 0 16px 38px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(239, 200, 118, 0.16);
+    animation:
+        ark-float 3s ease-in-out infinite,
+        ark-arrive 700ms var(--ark-ease-out) both,
+        ark-orbit-spin 2.5s linear infinite;
+}
+
+.ark-mark__image {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    animation: ark-aura-pulse 2s ease-in-out infinite;
+}
+
+.ark-mark__aura {
+    position: absolute;
+    z-index: 0;
+    inset: -20%;
+    background: radial-gradient(circle at 50% 27%, rgba(255, 223, 153, 0.3), rgba(210, 159, 67, 0.08) 30%, transparent 61%);
+}
+
+.ark-mark__water {
+    position: absolute;
+    z-index: 2;
+    right: -12%;
+    bottom: -3%;
+    left: -12%;
+    height: 43%;
+    pointer-events: none;
+    opacity: 0.72;
+    background:
+        linear-gradient(180deg, transparent 0 7%, rgba(255, 224, 151, 0.58) 8%, transparent 11%),
+        linear-gradient(180deg, rgba(36, 96, 119, 0.04), rgba(55, 129, 151, 0.2));
+    mix-blend-mode: screen;
+    animation: ark-water-rise 18s cubic-bezier(0.42, 0, 0.25, 1) both;
+}
+
+.ark-mark__water::before {
+    content: "";
+    position: absolute;
+    top: -4%;
+    left: -5%;
+    width: 110%;
+    height: 12%;
+    border-top: 1px solid rgba(255, 225, 157, 0.72);
+    border-radius: 50%;
+    filter: drop-shadow(0 0 7px rgba(255, 205, 103, 0.38));
+}
+
+.ark-mark::after {
+    content: "";
+    position: absolute;
+    z-index: 3;
+    inset: 2px;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 19%;
+    background: linear-gradient(132deg, rgba(255, 255, 255, 0.11), transparent 22% 72%, rgba(233, 190, 100, 0.07));
+}
+
+@property --ark-orbit {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+}
+
+@keyframes ark-orbit-spin {
+    to { --ark-orbit: 360deg; }
+}
+
+@keyframes ark-float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+@keyframes ark-arrive {
+    from { opacity: 0; transform: translateY(8px) scale(0.94); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes ark-aura-pulse {
+    0%, 100% { filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 6px rgba(150, 180, 255, 0.28)); }
+    50% { filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.95)) drop-shadow(0 0 12px rgba(228, 189, 103, 0.42)); }
+}
+
+@keyframes ark-water-rise {
+    from { opacity: 0.48; transform: translateY(42%); }
+    to { opacity: 0.78; transform: translateY(10%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ark-mark,
+    .ark-mark__image,
+    .ark-mark__water {
+        animation: none;
+    }
+
+    .ark-mark__water {
+        opacity: 0.58;
+        transform: translateY(24%);
+    }
+}

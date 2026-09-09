@@ -2,18 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Slowbooks Pro 2026</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#10130f">
+    <meta name="description" content="Ark CPA — MAGA Energy accounting powered by SlowBooks Pro 2026.">
+    <title>Ark CPA — SlowBooks Pro 2026</title>
+    <link rel="icon" href="/static/brand/ark-favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="/static/brand/ark-apple-touch-icon.png">
+    <link rel="manifest" href="/static/manifest.webmanifest">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/dark.css">
+    <link rel="stylesheet" href="/static/css/ark-brand.css">
+    <link rel="stylesheet" href="/static/css/ark-auth.css">
 </head>
-<body>
+<body class="auth-pending">
+    <div id="auth-root" aria-live="polite"></div>
     <!-- ================================================================
          Splash / About dialog
          Original showed the QuickBooks logo, build number, and a
          "Licensed to:" field read from HKCU\Software\Intuit\Registration
          ================================================================ -->
-    <div id="splash" class="splash-overlay">
+    <div id="splash" class="splash-overlay" aria-hidden="true" inert>
         <div class="splash-box">
             <div class="splash-title">Slowbooks Pro</div>
             <div class="splash-subtitle">2026 Edition</div>
@@ -36,7 +45,7 @@
         </div>
     </div>
 
-    <div id="app">
+    <div id="app" aria-hidden="true" inert>
         <!-- Skip link for keyboard users — first tab stop, lets them jump
              past the topbar + sidebar straight into page content. -->
         <a href="#page-content" class="skip-link">Skip to main content</a>

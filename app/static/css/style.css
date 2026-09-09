@@ -30,8 +30,6 @@
  * tiled BMP in the original. We recreated it as a CSS gradient. Close enough.
  * ============================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Tahoma&display=swap');
-
 :root {
     /* -- QB2003 "Default Blue" skin palette (extracted via Resource Hacker) -- */
     --qb-navy:        #003366;

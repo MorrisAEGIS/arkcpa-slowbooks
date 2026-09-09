@@ -1,5 +1,10 @@
 # Slowbooks Pro 2026
 
+> **Ark CPA deployment fork.** MorrisAEGIS maintains this fork as the private
+> MAGA Energy accounting workspace. The ARK identity, deployment integration,
+> and product-specific interface layer are additive; the upstream SlowBooks
+> project, copyright, source-available license, and attribution remain intact.
+
 **A personal bookkeeping application raised from the ashes of QuickBooks 2003 Pro.**
 
 Free, source-available, and complete: double-entry accounting, unlimited

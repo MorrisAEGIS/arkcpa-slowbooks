@@ -1,0 +1,22 @@
+{
+  "name": "Ark CPA",
+  "short_name": "Ark CPA",
+  "description": "MAGA Energy accounting powered by SlowBooks Pro 2026.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#10130f",
+  "theme_color": "#10130f",
+  "icons": [
+    {
+      "src": "/static/brand/ark-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/brand/ark-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

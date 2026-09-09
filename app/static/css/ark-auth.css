@@ -1,0 +1,357 @@
+#auth-root:empty {
+    display: none;
+}
+
+.ark-auth-page {
+    position: fixed;
+    z-index: 99999;
+    inset: 0;
+    min-height: 100dvh;
+    overflow-y: auto;
+    color: var(--ark-ink);
+    background-color: var(--ark-canvas);
+    background-image:
+        linear-gradient(rgba(228, 189, 103, 0.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(228, 189, 103, 0.028) 1px, transparent 1px),
+        radial-gradient(circle at 50% -20%, oklch(28% 0.035 92), transparent 42%);
+    background-size: 48px 48px, 48px 48px, auto;
+    font-family: var(--ark-font);
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.ark-auth-page::before {
+    content: "";
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: max(24px, calc(50% - 260px));
+    width: 1px;
+    pointer-events: none;
+    background: linear-gradient(transparent 7%, var(--ark-gold-muted) 28% 72%, transparent 93%);
+    opacity: 0.24;
+}
+
+.ark-auth-stage {
+    display: grid;
+    width: min(100%, 480px);
+    min-height: 100dvh;
+    margin: 0 auto;
+    padding:
+        max(40px, env(safe-area-inset-top))
+        max(20px, env(safe-area-inset-right))
+        max(32px, env(safe-area-inset-bottom))
+        max(20px, env(safe-area-inset-left));
+    align-content: center;
+}
+
+.ark-auth-page--setup .ark-auth-stage {
+    width: min(100%, 620px);
+}
+
+.ark-auth-page--setup .ark-mark {
+    --ark-mark-size: 58px;
+}
+
+.ark-auth-shell {
+    width: 100%;
+    animation: ark-auth-enter 500ms var(--ark-ease-out) both;
+}
+
+.ark-auth-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.ark-auth-eyebrow {
+    margin: 18px 0 6px;
+    color: var(--ark-gold);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+
+.ark-auth-title {
+    margin: 0;
+    color: var(--ark-ink);
+    font-size: 1.75rem;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.15;
+}
+
+.ark-auth-subtitle {
+    margin: 8px 0 0;
+    color: var(--ark-ink-muted);
+    font-size: 0.875rem;
+}
+
+.ark-auth-panel {
+    position: relative;
+    padding: 26px;
+    border: 1px solid var(--ark-line);
+    border-radius: 8px;
+    background: var(--ark-surface);
+    box-shadow: 0 28px 70px rgba(4, 7, 4, 0.34);
+}
+
+.ark-auth-panel::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    right: 34px;
+    left: 34px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--ark-gold), transparent);
+}
+
+.ark-auth-intro {
+    margin: 0 0 20px;
+    color: var(--ark-ink-muted);
+    font-size: 0.875rem;
+}
+
+.ark-auth-button {
+    display: inline-flex;
+    width: 100%;
+    min-height: 46px;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 16px;
+    border: 1px solid var(--ark-action);
+    border-radius: 5px;
+    color: oklch(18% 0.03 150);
+    background: var(--ark-action);
+    font: 600 0.875rem/1 var(--ark-font);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 140ms var(--ark-ease-out), border-color 140ms var(--ark-ease-out), transform 100ms var(--ark-ease-out);
+}
+
+.ark-auth-button:hover {
+    border-color: var(--ark-action-strong);
+    background: var(--ark-action-strong);
+}
+
+.ark-auth-button:active {
+    transform: translateY(1px);
+}
+
+.ark-auth-button:disabled {
+    cursor: wait;
+    opacity: 0.62;
+}
+
+.ark-auth-button--secondary {
+    border-color: var(--ark-line);
+    color: var(--ark-ink);
+    background: var(--ark-surface-raised);
+}
+
+.ark-auth-button--secondary:hover {
+    border-color: var(--ark-gold-muted);
+    background: oklch(27% 0.02 100);
+}
+
+.ark-auth-button:focus-visible,
+.ark-auth-link:focus-visible,
+.ark-auth-recovery summary:focus-visible,
+.ark-auth-input:focus-visible {
+    outline: 2px solid var(--ark-focus);
+    outline-offset: 3px;
+}
+
+.ark-auth-divider {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 10px;
+    align-items: center;
+    margin: 20px 0 0;
+    color: var(--ark-ink-faint);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.ark-auth-divider::before,
+.ark-auth-divider::after {
+    content: "";
+    height: 1px;
+    background: var(--ark-line-faint);
+}
+
+.ark-auth-recovery {
+    margin-top: 18px;
+    border-top: 1px solid var(--ark-line-faint);
+}
+
+.ark-auth-recovery summary {
+    padding: 16px 2px 0;
+    color: var(--ark-ink-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+}
+
+.ark-auth-recovery[open] summary {
+    color: var(--ark-ink);
+}
+
+.ark-auth-local-form,
+.ark-auth-setup-form {
+    display: grid;
+    gap: 14px;
+    margin-top: 18px;
+}
+
+.ark-auth-local-form--direct {
+    margin-top: 0;
+}
+
+.ark-auth-field {
+    min-width: 0;
+}
+
+.ark-auth-label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--ark-ink-muted);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.ark-auth-required {
+    color: var(--ark-gold);
+}
+
+.ark-auth-input {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--ark-line);
+    border-radius: 5px;
+    color: var(--ark-ink);
+    background: oklch(16% 0.012 120);
+    font: 400 1rem/1.25 var(--ark-font);
+}
+
+.ark-auth-input:hover {
+    border-color: oklch(45% 0.025 100);
+}
+
+.ark-auth-input::placeholder {
+    color: var(--ark-ink-faint);
+}
+
+.ark-auth-field-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.ark-auth-error {
+    min-height: 20px;
+    margin: 12px 0 0;
+    color: var(--ark-danger);
+    font-size: 0.8125rem;
+}
+
+.ark-auth-notice {
+    margin: 0;
+    padding: 11px 12px;
+    border: 1px solid var(--ark-gold-muted);
+    border-radius: 5px;
+    color: var(--ark-ink);
+    background: oklch(23% 0.03 84);
+    font-size: 0.8125rem;
+}
+
+.ark-auth-helper {
+    margin: 14px 0 0;
+    color: var(--ark-ink-faint);
+    font-size: 0.75rem;
+    text-align: center;
+}
+
+.ark-auth-switch {
+    margin-top: 14px;
+    text-align: center;
+}
+
+.ark-auth-link {
+    padding: 4px;
+    border: 0;
+    color: var(--ark-action);
+    background: transparent;
+    font: 500 0.8125rem/1.4 var(--ark-font);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+.ark-auth-provenance {
+    margin: 16px 0 0;
+    color: var(--ark-ink-faint);
+    font-size: 0.6875rem;
+    letter-spacing: 0.03em;
+    text-align: center;
+}
+
+@keyframes ark-auth-enter {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 560px) {
+    .ark-auth-page {
+        background-size: 36px 36px, 36px 36px, auto;
+    }
+
+    .ark-auth-page::before {
+        display: none;
+    }
+
+    .ark-auth-stage {
+        width: 100%;
+        padding-right: max(16px, env(safe-area-inset-right));
+        padding-left: max(16px, env(safe-area-inset-left));
+    }
+
+    .ark-auth-panel {
+        padding: 22px 18px;
+    }
+
+    .ark-mark {
+        --ark-mark-size: 64px;
+    }
+
+    .ark-auth-title {
+        font-size: 1.5rem;
+    }
+
+    .ark-auth-field-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (pointer: coarse) {
+    .ark-auth-button,
+    .ark-auth-input,
+    .ark-auth-recovery summary {
+        min-height: 48px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ark-auth-shell {
+        animation: none;
+    }
+
+    .ark-auth-button {
+        transition: none;
+    }
+}
