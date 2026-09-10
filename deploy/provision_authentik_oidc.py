@@ -207,6 +207,7 @@ def _workspace_env(args: argparse.Namespace, oidc: dict[str, object]) -> dict[st
         "AUTHENTIK_OIDC_BOOTSTRAP_EMAIL": args.bootstrap_email.lower(),
         "ARKCPA_WORKSPACE_ID": args.workspace_id,
         "ARKCPA_WORKSPACE_LABEL": args.workspace_label,
+        "ARKCPA_PUBLIC_HOSTNAME": args.hostname,
         "COMPANY_NAME": args.company_name
         or current.get("COMPANY_NAME")
         or "My Company",

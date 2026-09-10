@@ -53,6 +53,7 @@ def test_new_workspace_env_has_independent_secrets_and_private_permissions(tmp_p
     assert written["AUTHENTIK_OIDC_REQUIRED_GROUP"] == "ArkCPA Maesa Owners"
     assert written["AUTHENTIK_OIDC_BOOTSTRAP_EMAIL"] == "maesa@magaenergy.ai"
     assert written["ARKCPA_WORKSPACE_ID"] == "maesa-private"
+    assert written["ARKCPA_PUBLIC_HOSTNAME"] == "maesacpa.magaenergy.ai"
     assert written["POSTGRES_PASSWORD"]
     assert written["SESSION_SECRET_KEY"]
     assert written["PAYROLL_ENCRYPTION_SECRET"]
