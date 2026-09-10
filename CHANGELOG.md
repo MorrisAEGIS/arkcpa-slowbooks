@@ -28,6 +28,11 @@ navigation against the packaged release image.
 empty account selector now has an empty disabled value, so Ark CPA does not
 send the words “No bank accounts” to an integer API parameter.
 
+**Fresh Docker backup and upload volumes inherit the application user.** The
+image now creates both mountpoints before dropping privileges, so new named
+volumes remain writable by Ark CPA and the in-app PostgreSQL backup gate works
+without running the server as root.
+
 ### v2.9.4 — The company logo on every document; exception text stays in the log
 
 **Every PDF now carries the company logo when one is set.** The logo

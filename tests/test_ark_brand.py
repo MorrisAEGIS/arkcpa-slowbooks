@@ -193,3 +193,13 @@ def test_api_and_generated_output_branding():
     )
     assert '"# Ark CPA — Analytics Snapshot"' in read("app/routes/analytics.py")
     assert '"ark-cpa-export.iif"' in read("app/routes/iif.py")
+
+
+def test_runtime_mountpoints_and_startup_logs_use_ark_cpa_contract():
+    dockerfile = read("Dockerfile")
+    entrypoint = read("docker-entrypoint.sh")
+    assert "mkdir -p /app/backups /app/app/static/uploads" in dockerfile
+    assert "chown -R slowbooks:slowbooks /app" in dockerfile
+    assert 'echo "Ark CPA — Starting up..."' in entrypoint
+    assert 'echo "Starting Ark CPA on port ${APP_PORT:-3001}..."' in entrypoint
+    assert "Starting Slowbooks Pro" not in entrypoint

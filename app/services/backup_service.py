@@ -29,8 +29,9 @@ BACKUP_DIR = storage.backups_root()
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
 # Strict filename allow-list. Backup files we create are named
-# "slowbooks_YYYYMMDD_HHMMSS.sql" (Postgres) or ".db" (SQLite); we accept
-# any safe basename matching this character class with a known backup
+# New files use "ark_cpa_YYYYMMDD_HHMMSS.sql" (Postgres) or ".db" (SQLite).
+# Legacy Slowbooks filenames remain restorable; we accept any safe basename
+# matching this character class with a known backup
 # extension. NO path separators, NO ".." components -- this is the trust
 # boundary that CodeQL needs to see at the start of restore_backup()
 # before BACKUP_DIR / filename is constructed.
