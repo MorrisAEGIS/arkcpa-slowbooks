@@ -1,9 +1,8 @@
-# Slowbooks Pro 2026
+# Ark CPA
 
-> **Ark CPA deployment fork.** MorrisAEGIS maintains this fork as the private
-> MAGA Energy accounting workspace. The ARK identity, deployment integration,
-> and product-specific interface layer are additive; the upstream SlowBooks
-> project, copyright, source-available license, and attribution remain intact.
+> **Private ARK accounting workspace.** Ark CPA is built on the SlowBooks Pro
+> 2026 engine. The upstream copyright, source-available license, and attribution
+> remain intact.
 
 **A personal bookkeeping application raised from the ashes of QuickBooks 2003 Pro.**
 
@@ -55,6 +54,26 @@ Details, known gaps and how to report a barrier:
 [docs/accessibility.md](docs/accessibility.md).
 
 ## What's New
+
+**v2.10 — The bank register is the ledger.** A payment typed into a
+checking account's register now moves that account in the general ledger,
+because the register *is* the ledger: bank and credit-card accounts are
+flagged on the chart, the register is that account's posted lines with a
+running balance, and every document you post — expense, deposit, bill
+payment, payroll — appears in it. Statement lines from a feed or an import
+no longer post silently; each one looks for the entry you already made and
+matches it, and the rest wait in **To review** until you add them with a
+category, match them by hand, or exclude them. Transfers are a document, so
+paying a credit card is a transfer and the amount owed falls. Reconciliation
+ticks ledger lines and locks what it closed. Upgrading a file keeps its old
+register balance and shows it once, to post as an opening balance or
+dismiss — the upgrade itself writes nothing to your ledger. Guide:
+[docs/banking.md](docs/banking.md).
+
+Also in 2.10: **PDF receipts scan on Windows and macOS with nothing to
+install** (the operating system renders the page; poppler-utils is the Linux
+path), and the cash flow statement now follows the journals that actually
+move cash.
 
 **v2.9 — Nonprofit mode.** One switch in Settings and a church, a club, a
 PTO or a community arts group sees its own words — donors, pledges,
@@ -110,7 +129,7 @@ a native `.app` in a DMG, no Docker or Python required.
 [SimpleFIN](https://www.simplefin.org/) — you hold the bank credential,
 no middleman server, dedup + bank rules on arrival
 ([docs/setup-bank-feeds.md](docs/setup-bank-feeds.md)). Every install
-also serves a self-documenting local REST API (483 operations in v2.9); point
+also serves a self-documenting local REST API (499 operations in v2.10); point
 Claude Code or any agentic CLI at it —
 [slowbookspro.com/ai](https://www.slowbookspro.com/ai/) has the
 paste-prompt.
@@ -160,7 +179,7 @@ Full catalog (300+ entries) in **[docs/features.md](docs/features.md)**. Highlig
 - **Accounts payable** — purchase orders, bills, bill payments, AP aging
 - **Double-entry core** — auto + manual journals, closing-date
   enforcement, automatic audit log, 50-account contractor chart
-- **Banking** — register, deposits, reconciliation, check printing,
+- **Banking** — the register is the ledger (entries post, feeds are a review queue, reconciliation over ledger lines), transfers, deposits, check printing,
   OFX/QFX + Chase/PayPal CSV import with dedup, SimpleFIN bank feeds,
   shared auto-categorization rules
 - **Reports & tax** — P&L (plain & by Class), Balance Sheet, Trial

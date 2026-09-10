@@ -12,6 +12,8 @@ from app.database import get_db
 from app.models.accounts import Account
 from app.schemas.cc_charges import CCChargeCreate
 from app.services.accounting import create_journal_entry, get_cc_account_id
+from app.services.bank_posting import void_document
+from app.services.bank_register import voided_transaction_ids
 from app.services.closing_date import check_closing_date
 from app.models.transactions import Transaction
 
@@ -27,27 +29,33 @@ def list_cc_charges(db: Session = Depends(get_db)):
         .order_by(Transaction.date.desc())
         .all()
     )
+    voided = voided_transaction_ids(db, [t.id for t in txns])
+    ids = {ln.account_id for t in txns for ln in t.lines}
+    names = (
+        {a.id: a.name for a in db.query(Account).filter(Account.id.in_(ids)).all()}
+        if ids
+        else {}
+    )
     results = []
     for txn in txns:
-        expense_line = None
-        for line in txn.lines:
-            if line.debit > 0:
-                expense_line = line
-            elif line.credit > 0:
-                pass
-        acct = (
-            db.query(Account).filter(Account.id == expense_line.account_id).first()
-            if expense_line
-            else None
-        )
+        expense_line = next((ln for ln in txn.lines if ln.debit > 0), None)
+        card_line = next((ln for ln in txn.lines if ln.credit > 0), None)
         results.append(
             {
                 "id": txn.id,
+                "transaction_id": txn.id,
                 "date": txn.date.isoformat(),
                 "description": txn.description or "",
                 "reference": txn.reference or "",
                 "amount": float(expense_line.debit) if expense_line else 0,
-                "account_name": acct.name if acct else "",
+                "account_name": (
+                    names.get(expense_line.account_id, "") if expense_line else ""
+                ),
+                "card_account_id": card_line.account_id if card_line else None,
+                "card_account_name": (
+                    names.get(card_line.account_id, "") if card_line else ""
+                ),
+                "status": "void" if txn.id in voided else "recorded",
             }
         )
     return results
@@ -57,10 +65,18 @@ def list_cc_charges(db: Session = Depends(get_db)):
 def create_cc_charge(data: CCChargeCreate, db: Session = Depends(get_db)):
     check_closing_date(db, data.date)
 
-    cc_account_id = get_cc_account_id(db)
+    cc_account_id = data.card_account_id or get_cc_account_id(db)
     if not cc_account_id:
         raise HTTPException(
             status_code=400, detail="Credit Card account (2100) not found"
+        )
+    card = db.query(Account).filter(Account.id == cc_account_id).first()
+    if not card:
+        raise HTTPException(status_code=404, detail="Card account not found")
+    if card.account_type.value != "liability":
+        raise HTTPException(
+            status_code=400,
+            detail=f"{card.name} is not a credit-card (liability) account",
         )
 
     expense_account = db.query(Account).filter(Account.id == data.account_id).first()
@@ -105,3 +121,24 @@ def create_cc_charge(data: CCChargeCreate, db: Session = Depends(get_db)):
 
     db.commit()
     return {"status": "ok", "transaction_id": txn.id, "amount": float(amount)}
+
+
+@router.post("/{charge_id}/void")
+def void_cc_charge(charge_id: int, db: Session = Depends(get_db)):
+    """Reverse a charge: the original stays, a mirror image cancels it."""
+    txn = (
+        db.query(Transaction)
+        .filter(Transaction.id == charge_id, Transaction.source_type == "cc_charge")
+        .first()
+    )
+    if not txn:
+        raise HTTPException(status_code=404, detail="Charge not found")
+    if txn.id in voided_transaction_ids(db, [txn.id]):
+        raise HTTPException(status_code=400, detail="Charge is already void")
+    reversal = void_document(db, txn, "cc_charge_void")
+    db.commit()
+    return {
+        "status": "void",
+        "transaction_id": txn.id,
+        "void_transaction_id": reversal.id,
+    }

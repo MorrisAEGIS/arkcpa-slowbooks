@@ -95,7 +95,7 @@ const ScanHelper = {
         try {
             let resp;
             try { resp = await fetch('/api/ocr/receipt', { method: 'POST', body: fd }); }
-            catch (err) { throw new Error("SlowBooks isn't responding (network error) — if this keeps happening, close and relaunch SlowBooks Pro."); }
+            catch (err) { throw new Error("Ark CPA isn't responding (network error) — if this keeps happening, close and relaunch Ark CPA."); }
             if (!resp.ok) {
                 const d = await resp.json().catch(() => ({}));
                 throw new Error(d.detail || `Scan failed (HTTP ${resp.status})`);

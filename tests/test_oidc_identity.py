@@ -70,6 +70,29 @@ def test_bound_subject_not_email_controls_later_login(db_session):
     assert resolved.email == "jay.new@example.com"
 
 
+def test_bound_subject_cannot_claim_another_principals_email(db_session):
+    user = resolve_oidc_principal(db_session, _claims(), ISSUER, _env())
+    db_session.add(
+        User(
+            username="maesa",
+            display_name="Maesa",
+            email="maesa@example.com",
+            password_hash="local-recovery-hash",
+            role="bookkeeper",
+            is_active=True,
+        )
+    )
+    db_session.commit()
+
+    with pytest.raises(PermissionError, match="assigned to another principal"):
+        resolve_oidc_principal(
+            db_session,
+            _claims(subject=user.oidc_subject, email="maesa@example.com"),
+            ISSUER,
+            {},
+        )
+
+
 def test_unprovisioned_email_is_rejected(db_session):
     with pytest.raises(PermissionError, match="not provisioned"):
         resolve_oidc_principal(
@@ -79,6 +102,31 @@ def test_unprovisioned_email_is_rejected(db_session):
             _env("jay@example.com"),
         )
     assert db_session.query(User).count() == 0
+
+
+def test_explicit_unbound_user_email_can_bind_second_authentik_principal(db_session):
+    user = User(
+        username="maesa",
+        display_name="Maesa",
+        email="maesa@example.com",
+        password_hash="local-recovery-hash",
+        role="bookkeeper",
+        is_active=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    resolved = resolve_oidc_principal(
+        db_session,
+        _claims(subject="subject-maesa", email="maesa@example.com", username="maesa"),
+        ISSUER,
+        _env("jay@example.com"),
+    )
+    db_session.commit()
+
+    assert resolved.id == user.id
+    assert resolved.role == "bookkeeper"
+    assert resolved.oidc_subject == "subject-maesa"
 
 
 def test_subject_change_for_same_email_is_rejected(db_session):

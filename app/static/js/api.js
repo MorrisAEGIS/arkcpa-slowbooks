@@ -11,6 +11,8 @@ const API = {
         };
         const companyId = localStorage.getItem('slowbooks_company');
         if (companyId) opts.headers['X-Company-Id'] = companyId;
+        const arkEntity = localStorage.getItem('arkcpa_entity');
+        if (arkEntity) opts.headers['X-Ark-Entity'] = arkEntity;
         if (body) opts.body = JSON.stringify(body);
         let res;
         try {
@@ -18,7 +20,7 @@ const API = {
         } catch (err) {
             // The browser's bare "Failed to fetch" means the local server is
             // gone (desktop shell still showing the page). Say so.
-            throw new Error("SlowBooks isn't responding (network error) — if this keeps happening, close and relaunch SlowBooks Pro.");
+            throw new Error("Ark CPA isn't responding. Check your connection and try again.");
         }
         if (res.status === 401 && window.SlowbooksAuth) {
             // Session expired, never authed, or fresh install -- let auth.js

@@ -331,6 +331,15 @@ _INTENTIONAL_BACKEND_ONLY: set[tuple[str, str]] = {
     ("GET", "/api/document-audits"),
     ("GET", "/api/document-audits/{audit_id}"),
     ("GET", "/api/document-audits/verify/{content_hash}"),
+    # Ark CPA worker/control endpoints. Agent decisions require an explicitly
+    # granted API token; deterministic evaluate/post stays callable by workers
+    # and operators but is never simulated by browser JavaScript.
+    ("GET", "/api/ark-cpa/rule-packs"),
+    ("PUT", "/api/ark-cpa/entities/{entity_id}/access"),
+    ("PUT", "/api/ark-cpa/entities/{entity_id}/agent-grants"),
+    ("PUT", "/api/ark-cpa/candidates/{candidate_id}/decision"),
+    ("POST", "/api/ark-cpa/candidates/{candidate_id}/evaluate"),
+    ("POST", "/api/ark-cpa/candidates/{candidate_id}/post"),
 }
 
 

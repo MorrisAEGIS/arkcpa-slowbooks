@@ -13,7 +13,7 @@ const DepositsPage = {
             `<option value="${c.id}" ${c.is_system_default ? 'selected' : ''}>${escapeHtml(c.name)}</option>`
         ).join('');
 
-        const bankAccts = accounts.filter(a => a.account_type === 'asset');
+        const bankAccts = accounts.filter(a => a.bank_kind === 'bank');
         const bankOpts = bankAccts.map(a => `<option value="${a.id}">${escapeHtml(a.name)} (${formatCurrency(a.balance)})</option>`).join('');
 
         let html = `

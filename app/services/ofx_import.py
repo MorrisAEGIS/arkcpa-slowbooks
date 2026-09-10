@@ -124,8 +124,37 @@ def import_transactions(
 
     db.commit()
 
-    # Auto-apply bank rules to newly imported transactions
+    matched = 0
     if imported > 0:
+        # rules suggest a category; then each new line looks for the one
+        # posting the ledger already has for it (issue #114)
         apply_bank_rules(db, bank_account_id)
+        matched = _auto_match_new(db, bank_account_id)
 
-    return {"imported": imported, "skipped": skipped, "total": len(transactions)}
+    return {
+        "imported": imported,
+        "skipped": skipped,
+        "matched": matched,
+        "total": len(transactions),
+    }
+
+
+def _auto_match_new(db: Session, bank_account_id: int) -> int:
+    from app.models.banking import BankAccount
+    from app.services.bank_matching import auto_match
+
+    ba = db.query(BankAccount).filter(BankAccount.id == bank_account_id).first()
+    if not ba:
+        return 0
+    rows = (
+        db.query(BankTransaction)
+        .filter(
+            BankTransaction.bank_account_id == bank_account_id,
+            BankTransaction.match_status == "unmatched",
+        )
+        .all()
+    )
+    n = auto_match(db, ba, rows)
+    if n:
+        db.commit()
+    return n

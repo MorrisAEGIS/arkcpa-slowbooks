@@ -5,6 +5,11 @@
 const App = {
     routes: {
         '/':              { page: 'dashboard',       label: 'Dashboard',          render: () => DashboardPage.render() },
+        '/ark-cpa':       { page: 'ark-cpa',         label: 'Control Center',     render: () => ArkCPA.renderControlCenter() },
+        '/ark-cpa/evidence': { page: 'ark-cpa-evidence', label: 'Evidence',       render: () => ArkCPA.renderEvidence() },
+        '/ark-cpa/review': { page: 'ark-cpa-review', label: 'Agent Review',       render: () => ArkCPA.renderReview() },
+        '/ark-cpa/compliance': { page: 'ark-cpa-compliance', label: 'Compliance', render: () => ArkCPA.renderCompliance() },
+        '/ark-cpa/entities': { page: 'ark-cpa-entities', label: 'Entities',       render: () => ArkCPA.renderEntities() },
         '/customers':     { page: 'customers',       label: 'Customer Center',    render: () => CustomersPage.render() },
         '/jobs':          { page: 'jobs',            label: 'Jobs',               render: () => JobsPage.render() },
         '/jobs/:id':      { page: 'jobs',            label: 'Job',                render: (id) => JobsPage.renderDetail(id) },
@@ -18,7 +23,8 @@ const App = {
         '/in-kind-gifts': { page: 'in-kind-gifts',   label: 'In-Kind Gifts',      render: () => InKindPage.render() },
         '/estimates':     { page: 'estimates',       label: 'Create Estimates',   render: () => EstimatesPage.render() },
         '/payments':      { page: 'payments',        label: 'Receive Payments',   render: () => PaymentsPage.render() },
-        '/banking':       { page: 'banking',         label: 'Bank Accounts',      render: () => BankingPage.render() },
+        '/banking':       { page: 'banking',         label: 'Banking',            render: () => BankingPage.render() },
+        '/banking/:id':   { page: 'banking',         label: 'Register',           render: (id) => BankingPage.renderRegister(id) },
         '/accounts':      { page: 'accounts',        label: 'Chart of Accounts',  render: () => App.renderAccounts() },
         '/reports':       { page: 'reports',         label: 'Report Center',      render: () => ReportsPage.render() },
         '/settings':      { page: 'settings',        label: 'Company Settings',   render: () => SettingsPage.render() },
@@ -56,7 +62,8 @@ const App = {
         // Phase 9: Forum Bug Fixes & Missing Features
         '/journal':       { page: 'journal',         label: 'Journal Entries',    render: () => JournalPage.render() },
         '/deposits':      { page: 'deposits',        label: 'Make Deposits',      render: () => DepositsPage.render() },
-        '/check-register': { page: 'check-register', label: 'Check Register',     render: () => CheckRegisterPage.render() },
+        // The Check Register page is the Banking register now (2.10); old bookmarks land there.
+        '/check-register': { page: 'banking',         label: 'Banking',            render: () => { App.navigate('#/banking'); return ''; } },
         '/cc-charges':    { page: 'cc-charges',      label: 'CC Charges',         render: () => CCChargesPage.render() },
         '/expenses':      { page: 'expenses',        label: 'Enter Expenses',     render: () => ExpensesPage.render() },
         // Phase 10: Quick Wins + Medium Effort Features
@@ -489,9 +496,9 @@ const App = {
             Terms.init(s);
             const companyEl = $('#status-company');
             if (companyEl && s.company_name && s.company_name !== 'My Company') {
-                companyEl.textContent = `Company: ${s.company_name}`;
+                companyEl.textContent = `Entity: ${s.company_name}`;
                 // the window / tab title and the topbar brand say whose books these are
-                document.title = `${s.company_name} — Slowbooks Pro 2026`;
+                document.title = `${s.company_name} — Ark CPA`;
                 const brand = $('#topbar-company');
                 if (brand) brand.textContent = s.company_name;
             }
@@ -527,17 +534,19 @@ const App = {
             : { authenticated: true };
         if (!authStatus.authenticated) return;
 
+        await ArkCPA.init(authStatus);
+
         // Make the signed-in human and hard-isolated workspace visible in
         // the shell. This is a security affordance, not decoration: an
         // operator should always know whose books are open before writing.
         const workspaceChip = $('#ark-workspace-chip');
         const workspaceLabel = $('#ark-workspace-chip-label');
-        if (workspaceChip && workspaceLabel && authStatus.workspace) {
+        if (workspaceChip && workspaceLabel) {
             const user = authStatus.user || {};
             const person = user.display_name || user.username || 'Operator';
-            const books = authStatus.workspace.label || 'Private books';
+            const books = ArkCPA.activeEntity ? ArkCPA.activeEntity.name : 'No entity selected';
             workspaceLabel.textContent = `${person} · ${books}`;
-            workspaceChip.title = 'Dedicated database and private file storage';
+            workspaceChip.title = 'Authenticated user and isolated legal-entity ledger';
             workspaceChip.hidden = false;
         }
 

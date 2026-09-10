@@ -11,3 +11,5 @@ winrt-Windows.Storage.Streams==3.2.1
 winrt-Windows.Foundation==3.2.1
 winrt-Windows.Foundation.Collections==3.2.1
 winrt-Windows.Globalization==3.2.1
+# PDF page-1 rasterization without poppler (2.10, issue #116)
+winrt-Windows.Data.Pdf==3.2.1

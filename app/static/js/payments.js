@@ -96,7 +96,7 @@ const PaymentsPage = {
             API.get('/customers?active_only=true'),
             API.get('/accounts'),
         ]);
-        const bankAccts = accounts.filter(a => a.account_type === 'asset');
+        const bankAccts = accounts.filter(a => a.bank_kind === 'bank');
 
         const custOpts = customers.map(c => `<option value="${c.id}"${prefillCustomerId === c.id ? ' selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
         const bankOpts = bankAccts.map(a => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('');

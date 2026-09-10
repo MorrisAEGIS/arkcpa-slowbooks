@@ -1,4 +1,4 @@
-"""Private-workspace provisioning safety contract."""
+"""Canonical Ark CPA Authentik provisioning safety contract."""
 
 import argparse
 import stat
@@ -15,19 +15,19 @@ from deploy.provision_authentik_oidc import (
 
 def _args(tmp_path, **changes):
     values = {
-        "env_file": tmp_path / "private" / "workspace.env",
-        "slug": "arkcpa-maesa",
-        "hostname": "maesacpa.magaenergy.ai",
+        "env_file": tmp_path / "private" / "arkcpa.env",
+        "slug": "arkcpa",
+        "hostname": "arkcpa.magaenergy.ai",
         "alias": [],
-        "workspace_id": "maesa-private",
-        "compose_project": "arkcpa-maesa",
-        "postgres_user": "arkcpa_maesa",
-        "postgres_db": "arkcpa_maesa",
+        "workspace_id": "arkcpa",
+        "compose_project": "arkcpa-slowbooks",
+        "postgres_user": "arkcpa",
+        "postgres_db": "arkcpa",
         "publish_port": 3334,
-        "bootstrap_email": "maesa@magaenergy.ai",
-        "group": "ArkCPA Maesa Owners",
-        "workspace_label": "Maesa's private books",
-        "company_name": "Maesa Private Books",
+        "bootstrap_email": "owner@magaenergy.ai",
+        "group": "ArkCPA Owners",
+        "workspace_label": "Multi-entity books",
+        "company_name": "Ark CPA",
     }
     values.update(changes)
     return argparse.Namespace(**values)
@@ -35,7 +35,7 @@ def _args(tmp_path, **changes):
 
 def _oidc():
     return {
-        "issuer": "https://auth.example/application/o/arkcpa-maesa/",
+        "issuer": "https://auth.example/application/o/arkcpa/",
         "client_id": "client-id",
         "client_secret": "client-secret",
     }
@@ -48,12 +48,12 @@ def test_new_workspace_env_has_independent_secrets_and_private_permissions(tmp_p
     _write_env(args.env_file, values)
 
     written = _read_env(args.env_file)
-    assert written["COMPOSE_PROJECT_NAME"] == "arkcpa-maesa"
+    assert written["COMPOSE_PROJECT_NAME"] == "arkcpa-slowbooks"
     assert written["APP_PUBLISH_PORT"] == "3334"
-    assert written["AUTHENTIK_OIDC_REQUIRED_GROUP"] == "ArkCPA Maesa Owners"
-    assert written["AUTHENTIK_OIDC_BOOTSTRAP_EMAIL"] == "maesa@magaenergy.ai"
-    assert written["ARKCPA_WORKSPACE_ID"] == "maesa-private"
-    assert written["ARKCPA_PUBLIC_HOSTNAME"] == "maesacpa.magaenergy.ai"
+    assert written["AUTHENTIK_OIDC_REQUIRED_GROUP"] == "ArkCPA Owners"
+    assert written["AUTHENTIK_OIDC_BOOTSTRAP_EMAIL"] == "owner@magaenergy.ai"
+    assert written["ARKCPA_WORKSPACE_ID"] == "arkcpa"
+    assert written["ARKCPA_PUBLIC_HOSTNAME"] == "arkcpa.magaenergy.ai"
     assert written["POSTGRES_PASSWORD"]
     assert written["SESSION_SECRET_KEY"]
     assert written["PAYROLL_ENCRYPTION_SECRET"]

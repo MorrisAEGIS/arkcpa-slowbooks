@@ -19,7 +19,7 @@ FIXTURE = (
 def _import(db_session):
     from app.services.qb_report_import import import_sales_receipt_report
 
-    return import_sales_receipt_report(db_session, FIXTURE.read_text())
+    return import_sales_receipt_report(db_session, FIXTURE.read_text(encoding="utf-8"))
 
 
 def test_report_import_creates_paid_receipts(db_session, seed_accounts):
@@ -145,9 +145,9 @@ def _sum_dr_cr(db_session, txn_id):
 def test_detect_report_type():
     from app.services.qb_report_import import detect_report_type
 
-    assert detect_report_type(FIXTURE.read_text()) == "sales_receipts"
-    assert detect_report_type(DEPOSIT_FIXTURE.read_text()) == "deposits"
-    assert detect_report_type(CHECK_FIXTURE.read_text()) == "checks"
+    assert detect_report_type(FIXTURE.read_text(encoding="utf-8")) == "sales_receipts"
+    assert detect_report_type(DEPOSIT_FIXTURE.read_text(encoding="utf-8")) == "deposits"
+    assert detect_report_type(CHECK_FIXTURE.read_text(encoding="utf-8")) == "checks"
     assert detect_report_type("a,b\n1,2\n") is None
 
 
@@ -155,7 +155,9 @@ def test_deposit_report_imports_balanced_journals(db_session, seed_accounts):
     from app.models.transactions import Transaction, TransactionLine
     from app.services.qb_report_import import import_deposit_report
 
-    result = import_deposit_report(db_session, DEPOSIT_FIXTURE.read_text())
+    result = import_deposit_report(
+        db_session, DEPOSIT_FIXTURE.read_text(encoding="utf-8")
+    )
     assert result["errors"] == [], result
     assert result["deposits"] == 2
 
@@ -185,9 +187,14 @@ def test_deposit_report_rerun_skips_duplicates(db_session, seed_accounts):
     from app.services.qb_report_import import import_deposit_report
 
     assert (
-        import_deposit_report(db_session, DEPOSIT_FIXTURE.read_text())["deposits"] == 2
+        import_deposit_report(db_session, DEPOSIT_FIXTURE.read_text(encoding="utf-8"))[
+            "deposits"
+        ]
+        == 2
     )
-    second = import_deposit_report(db_session, DEPOSIT_FIXTURE.read_text())
+    second = import_deposit_report(
+        db_session, DEPOSIT_FIXTURE.read_text(encoding="utf-8")
+    )
     assert second["deposits"] == 0
     assert second["duplicates_skipped"] == 2
     assert db_session.query(Transaction).filter_by(source_type="deposit").count() == 2
@@ -197,7 +204,7 @@ def test_check_report_imports_balanced_journals(db_session, seed_accounts):
     from app.models.transactions import Transaction, TransactionLine
     from app.services.qb_report_import import import_check_report
 
-    result = import_check_report(db_session, CHECK_FIXTURE.read_text())
+    result = import_check_report(db_session, CHECK_FIXTURE.read_text(encoding="utf-8"))
     assert result["errors"] == [], result
     assert result["checks"] == 4
 
@@ -233,8 +240,13 @@ def test_check_report_imports_balanced_journals(db_session, seed_accounts):
 def test_check_report_rerun_skips_duplicates(db_session, seed_accounts):
     from app.services.qb_report_import import import_check_report
 
-    assert import_check_report(db_session, CHECK_FIXTURE.read_text())["checks"] == 4
-    second = import_check_report(db_session, CHECK_FIXTURE.read_text())
+    assert (
+        import_check_report(db_session, CHECK_FIXTURE.read_text(encoding="utf-8"))[
+            "checks"
+        ]
+        == 4
+    )
+    second = import_check_report(db_session, CHECK_FIXTURE.read_text(encoding="utf-8"))
     assert second["checks"] == 0
     assert second["duplicates_skipped"] == 4
 
@@ -242,7 +254,9 @@ def test_check_report_rerun_skips_duplicates(db_session, seed_accounts):
 def test_check_report_unknown_account_errors_that_block_only(db_session, seed_accounts):
     from app.services.qb_report_import import import_check_report
 
-    text = CHECK_FIXTURE.read_text().replace("Office Supplies", "No Such Account")
+    text = CHECK_FIXTURE.read_text(encoding="utf-8").replace(
+        "Office Supplies", "No Such Account"
+    )
     result = import_check_report(db_session, text)
     assert result["checks"] == 3
     assert len(result["errors"]) == 1
@@ -293,7 +307,7 @@ def test_payroll_check_with_withholding_contra_lines(db_session, seed_accounts):
     from app.models.transactions import Transaction, TransactionLine
     from app.services.qb_report_import import import_check_report
 
-    result = import_check_report(db_session, CHECK_FIXTURE.read_text())
+    result = import_check_report(db_session, CHECK_FIXTURE.read_text(encoding="utf-8"))
     assert result["errors"] == [], result
     assert result["checks"] == 4
 
@@ -342,7 +356,7 @@ def test_unrecognized_check_block_types_are_warned_not_silent(
     silently dropped."""
     from app.services.qb_report_import import import_check_report
 
-    text = CHECK_FIXTURE.read_text() + BILL_PMT_BLOCK
+    text = CHECK_FIXTURE.read_text(encoding="utf-8") + BILL_PMT_BLOCK
     result = import_check_report(db_session, text)
     assert result["checks"] == 4  # the real checks still import
     assert result["errors"] == []
@@ -354,7 +368,9 @@ def test_unrecognized_check_block_types_are_warned_not_silent(
 def test_cp1252_export_decodes_instead_of_500(client, seed_accounts):
     """QB Desktop's Save-as-CSV often writes Windows-1252; a payee like
     'José' must import, not UnicodeDecodeError into a 500."""
-    text = CHECK_FIXTURE.read_text().replace("Freight Express", "José Hernández")
+    text = CHECK_FIXTURE.read_text(encoding="utf-8").replace(
+        "Freight Express", "José Hernández"
+    )
     raw = text.encode("cp1252")
     r = client.post(
         "/api/csv/import/qb-report",

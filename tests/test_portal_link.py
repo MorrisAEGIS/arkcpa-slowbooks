@@ -34,7 +34,7 @@ def test_portal_url_is_absolute(client, seed_accounts):
 
 
 def test_desktop_shim_leaves_portal_links_to_the_browser():
-    shim = (ROOT / "app/static/js/desktop_shim.js").read_text()
+    shim = (ROOT / "app/static/js/desktop_shim.js").read_text(encoding="utf-8")
     assert "function isPortalUrl" in shim
     assert "isSameOrigin(url) && !isPortalUrl(url)" in shim  # window.open path
     assert "if (isPortalUrl(a.href))" in shim  # click path

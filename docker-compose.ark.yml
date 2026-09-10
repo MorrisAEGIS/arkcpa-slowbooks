@@ -29,7 +29,7 @@ services:
       retries: 20
 
   slowbooks:
-    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.9.4-ark-isolation-clean-20260909}
+    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.10.1-ark-controller}
     build:
       context: .
     restart: unless-stopped
@@ -63,6 +63,10 @@ services:
       ARKCPA_WORKSPACE_ID: ${ARKCPA_WORKSPACE_ID:-private}
       ARKCPA_WORKSPACE_LABEL: ${ARKCPA_WORKSPACE_LABEL:-Private books}
       ARKCPA_PUBLIC_HOSTNAME: ${ARKCPA_PUBLIC_HOSTNAME:-arkcpa.magaenergy.ai}
+      ARKCPA_ENTITY_MODE: ${ARKCPA_ENTITY_MODE:-true}
+      ARK_FILES_ROOT: /ark-files
+      ARKCPA_MAX_EVIDENCE_BYTES: ${ARKCPA_MAX_EVIDENCE_BYTES:-52428800}
+      ARKCPA_MAX_SCAN_FILES: ${ARKCPA_MAX_SCAN_FILES:-10000}
       RATE_LIMIT_ENABLED: "1"
       PAYROLL_ENCRYPTION_SECRET: ${PAYROLL_ENCRYPTION_SECRET:?missing PAYROLL_ENCRYPTION_SECRET}
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:?missing SESSION_SECRET_KEY}
@@ -75,6 +79,7 @@ services:
     volumes:
       - slowbooks_uploads:/app/app/static/uploads
       - slowbooks_backups:/app/backups
+      - ${ARK_FILES_ROOT_HOST:-/home/novaadmin/ark-files}:/ark-files:ro
     healthcheck:
       test:
         - CMD

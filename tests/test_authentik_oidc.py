@@ -206,5 +206,5 @@ def test_valid_callback_issues_normal_slowbooks_admin_session(
     assert status_response["workspace"] == {
         "id": "jay-private",
         "label": "Jay's private books",
-        "isolation": "dedicated-stack",
+        "isolation": "entity-database",
     }

@@ -125,7 +125,7 @@ const OcrCanvas = {
                 ? 'Colored boxes are what the scan found. Drag a new box to fix anything it missed or got wrong.'
                 : 'Drag a box around a value, then tap what it is.');
         };
-        img.onerror = () => this._msg('Could not load the scan image — is SlowBooks still running?', true);
+        img.onerror = () => this._msg('Could not load the scan image — is Ark CPA still running?', true);
         img.src = `/api/ocr/intake/${encodeURIComponent(result.intake_id)}/image`;
     },
 

@@ -36,7 +36,10 @@ class BankAccount(Base):
     )  # linked COA account
     bank_name = Column(String(200), nullable=True)
     last_four = Column(String(4), nullable=True)
-    balance = Column(Numeric(12, 2), default=0)
+    # Pre-2.10 the register kept its own balance here. The balance is now
+    # the linked GL account's; this holds the old number until the user
+    # posts it as an opening balance or dismisses it (Banking page banner).
+    legacy_balance = Column(Numeric(12, 2), nullable=True)
     is_active = Column(Boolean, default=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -63,28 +66,46 @@ class BankTransaction(Base):
     description = Column(String(500), nullable=True)
     check_number = Column(String(50), nullable=True)
     category_account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
-    reconciled = Column(Boolean, default=False)
+    reconciled = Column(Boolean, default=False)  # pre-2.10 side-ledger tick
+    # The posting this statement line is matched to (or was added as): the
+    # journal entry and the specific line on the bank account (a transfer
+    # has two bank lines, so the line matters).
     transaction_id = Column(Integer, ForeignKey("transactions.id"), nullable=True)
+    transaction_line_id = Column(
+        Integer, ForeignKey("transaction_lines.id"), nullable=True
+    )
 
     # OFX/QFX import fields (Feature 18)
     import_id = Column(String(100), nullable=True)  # OFX FITID for dedup
     import_source = Column(String(50), nullable=True)  # e.g. "ofx", "qfx"
-    match_status = Column(String(20), nullable=True)  # "auto", "manual", "unmatched"
+    # "unmatched" | "auto" | "manual" | "added" | "excluded"
+    # (auto/manual = linked to an existing posting; added = posted from here)
+    match_status = Column(String(20), nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     bank_account = relationship("BankAccount", back_populates="transactions")
     category_account = relationship("Account", foreign_keys=[category_account_id])
     transaction = relationship("Transaction", foreign_keys=[transaction_id])
+    transaction_line = relationship(
+        "TransactionLine", foreign_keys=[transaction_line_id]
+    )
 
 
 class Reconciliation(Base):
     __tablename__ = "reconciliations"
 
     id = Column(Integer, primary_key=True, index=True)
-    bank_account_id = Column(Integer, ForeignKey("bank_accounts.id"), nullable=False)
+    # Reconciliation is over the GL account's lines (2.10); bank_account_id
+    # is the pre-2.10 key, kept for old rows.
+    account_id = Column(Integer, ForeignKey("accounts.id"), nullable=True)
+    bank_account_id = Column(Integer, ForeignKey("bank_accounts.id"), nullable=True)
     statement_date = Column(Date, nullable=False)
     statement_balance = Column(Numeric(12, 2), nullable=False)
+    # The prior completed statement's balance; cleared_total is stamped on
+    # completion so the history reads without recomputing.
+    beginning_balance = Column(Numeric(12, 2), nullable=False, default=0)
+    cleared_total = Column(Numeric(12, 2), nullable=True)
     status = Column(
         Enum(ReconciliationStatus), default=ReconciliationStatus.IN_PROGRESS
     )
@@ -93,3 +114,4 @@ class Reconciliation(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
 
     bank_account = relationship("BankAccount")
+    account = relationship("Account", foreign_keys=[account_id])

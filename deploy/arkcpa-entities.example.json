@@ -1,0 +1,53 @@
+{
+  "entities": [
+    {
+      "name": "EXACT_PERSONAL_LEDGER_NAME",
+      "slug": "personal",
+      "entity_type": "ca_personal",
+      "database_name": "arkcpa_personal",
+      "jurisdiction": "Canada / Alberta",
+      "currency": "CAD",
+      "status": "active",
+      "fiscal_year_end_month": 12,
+      "fiscal_year_end_day": 31,
+      "default_user": "jay",
+      "access": {"jay": "admin", "maesa": "bookkeeper"}
+    },
+    {
+      "name": "EXACT_ALBERTA_CORPORATION_NAME",
+      "slug": "alberta-corporation-1",
+      "entity_type": "ca_ab_corporation",
+      "database_name": "arkcpa_ab_corp_1",
+      "jurisdiction": "Canada / Alberta",
+      "currency": "CAD",
+      "status": "active",
+      "fiscal_year_end_month": 12,
+      "fiscal_year_end_day": 31,
+      "access": {"jay": "admin", "maesa": "bookkeeper"}
+    },
+    {
+      "name": "EXACT_FAMILY_TRUST_NAME",
+      "slug": "family-trust",
+      "entity_type": "ca_ab_family_trust",
+      "database_name": "arkcpa_family_trust",
+      "jurisdiction": "Canada / Alberta",
+      "currency": "CAD",
+      "status": "active",
+      "fiscal_year_end_month": 12,
+      "fiscal_year_end_day": 31,
+      "access": {"jay": "admin", "maesa": "bookkeeper"}
+    },
+    {
+      "name": "EXACT_TEXAS_LLC_NAME",
+      "slug": "texas-llc",
+      "entity_type": "us_tx_llc",
+      "database_name": "arkcpa_texas_llc",
+      "jurisdiction": "United States / Texas",
+      "currency": "USD",
+      "status": "dormant",
+      "fiscal_year_end_month": 12,
+      "fiscal_year_end_day": 31,
+      "access": {"jay": "admin", "maesa": "bookkeeper"}
+    }
+  ]
+}

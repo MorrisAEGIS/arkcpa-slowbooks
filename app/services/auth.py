@@ -76,7 +76,7 @@ def get_session_secret() -> str:
     key_path = Path(__file__).resolve().parents[2] / ".slowbooks-session.key"
     if key_path.exists():
         try:
-            existing = key_path.read_text().strip()
+            existing = key_path.read_text(encoding="utf-8").strip()
             if existing:
                 logger.info("session secret loaded from %s", key_path)
                 return existing
@@ -98,7 +98,7 @@ def get_session_secret() -> str:
         logger.warning("could not persist session secret to %s: %s", key_path, exc)
     if key_path.exists():
         try:
-            existing = key_path.read_text().strip()
+            existing = key_path.read_text(encoding="utf-8").strip()
             if existing:
                 if persisted:
                     logger.info("new session secret written to %s", key_path)

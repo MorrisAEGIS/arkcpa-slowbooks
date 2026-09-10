@@ -23,7 +23,7 @@ from pydantic import Field
 from app.schemas.common import StrictModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_control_db
 from app.models.auth import LoginAttempt
 from app.services.auth import (
     authenticate,
@@ -192,7 +192,7 @@ _SETUP_SETTINGS_KEYS = (
 
 
 @router.get("/status")
-def auth_status(request: Request, db: Session = Depends(get_db)):
+def auth_status(request: Request, db: Session = Depends(get_control_db)):
     """Tell the SPA whether first-run setup is needed and whether the
     current session is authenticated."""
     authenticated = request.session.get("authenticated") is True
@@ -224,12 +224,12 @@ def auth_status(request: Request, db: Session = Depends(get_db)):
             "username": request.session.get("username"),
             "display_name": request.session.get("display_name") or "",
             "role": request.session.get("role") or "admin",
-            "email": request.session.get("oidc_email") or "",
+            "email": request.session.get("user_email") or "",
         }
         out["workspace"] = {
             "id": request.session.get("workspace_id") or "private",
             "label": request.session.get("workspace_label") or "Private books",
-            "isolation": "dedicated-stack",
+            "isolation": "entity-database",
         }
     return out
 
@@ -262,7 +262,7 @@ async def authentik_login(request: Request):
 
 
 @router.get("/authentik/callback")
-async def authentik_callback(request: Request, db: Session = Depends(get_db)):
+async def authentik_callback(request: Request, db: Session = Depends(get_control_db)):
     """Verify the Authentik callback, then issue a normal SlowBooks session."""
     secure = _is_secure_request(request)
     if request.query_params.get("error"):
@@ -304,7 +304,7 @@ async def authentik_callback(request: Request, db: Session = Depends(get_db)):
         request.session["authenticated"] = True
         _stash_user(request, user)
         request.session["oidc_sub"] = str(claims["sub"])
-        request.session["oidc_email"] = str(claims["email"]).strip().lower()
+        request.session["user_email"] = str(claims["email"]).strip().lower()
         request.session["workspace_id"] = (
             os.environ.get("ARKCPA_WORKSPACE_ID") or "private"
         ).strip()
@@ -330,7 +330,7 @@ async def authentik_callback(request: Request, db: Session = Depends(get_db)):
 def setup(
     payload: SetupPayload,
     request: Request,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_control_db),
 ):
     """First-run setup: store company/operator info and the operator password
     in one transaction, then issue a session. Returns 409 if a password is
@@ -399,6 +399,7 @@ def _stash_user(request: Request, user) -> None:
     request.session["username"] = user.username
     request.session["display_name"] = user.display_name
     request.session["role"] = user.role
+    request.session["user_email"] = user.email or ""
 
 
 @router.post("/login")
@@ -406,7 +407,7 @@ def _stash_user(request: Request, user) -> None:
 def login(
     request: Request,
     payload: PasswordPayload,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_control_db),
 ):
     """Verify the operator password and issue a session.
 

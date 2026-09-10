@@ -7,6 +7,160 @@ on what the software does, not on what sprint shipped what.
 
 ## [Unreleased]
 
+### v2.10.1 — A document is never accepted without its journal entry
+
+**A saved invoice that never reached the books is worse than a rejected
+one.** wilsons043 reported (issue #119, against the signed 2.10.0 Windows
+release) that renumbering Accounts Receivable away from 1100 made every
+later invoice, payment, credit memo and estimate post *no journal entry* —
+while still returning success and still appearing in the A/R aging. The same
+thing happened on the payables side with Accounts Payable and 2000. The
+sub-ledger and the general ledger drifted apart with nothing shown to the
+operator.
+
+Two independent faults produced it, and both are fixed.
+
+**The chart no longer lets you renumber an account the software posts to.**
+Fifteen account numbers are resolved by literal value somewhere in the
+code — not the six in the original report, which is why the fix is a
+registry rather than a patch at one site. Changing the number or the type of
+one of those is refused with a message naming the account and what it is
+used for. **Renaming stays allowed**, because only the number is
+load-bearing: an accountant relabelling 1100 as "Trade Debtors" was never
+the problem. The guard is deliberately *not* keyed on the system-account
+flag, since every seeded account carries it and renumbering an ordinary
+expense account is a reasonable request.
+
+**A posting that cannot resolve its account now stops.** The resolvers
+returned `None` on a miss and their callers read that as "skip the journal
+entry" — twenty places did this, covering both receivables and payables and
+both manual entry and import. They raise now, and the request answers **409**
+naming the missing account, with nothing written. This is the half that
+matters: renumbering was only the easiest way to reach a fail-open that the
+recurring-invoice and unattended import paths could also have hit.
+
+**Opening a company file now says if its chart is incomplete**, rather than
+waiting for the first document to fail. That also closes a second route the
+reporter found: a company bootstrapped outside the normal path has no chart
+at all and used to accept documents that posted nothing.
+
+*Why nothing caught this.* Through all of it the trial balance **balanced** —
+debits equalled credits to the cent, because the ledger stayed internally
+consistent and was simply missing an entry. Our three-platform release gate
+compares trial balances every release and would have passed this every time.
+Only tying a control account to its sub-ledger finds it. The regression test
+asserts that tie-out, not the balance.
+
+Thanks to wilsons043 for a report that included a clean reproduction, the
+root cause, and the sixteen call sites they had read but not run.
+
+### v2.10.0 — The bank register is the ledger
+
+**A register entry moves the general ledger, and the register shows what the
+ledger has.** Discussion #112 (a QuickBooks user) asked why a −500 entered in
+the checking register left account 1000 untouched; the answer was that the
+register had been a side ledger since day one — its own rows, its own stored
+balance, imports that never posted, documents that never appeared in it,
+reconciliation ticking rows the ledger had never seen. From 2.10 the ledger
+is the only ledger (issue #114).
+
+**What a bank account is now.** A chart account flagged `bank` or
+`credit_card` (Checking, Savings and Credit Card come flagged; Chart of
+Accounts can flag others). Every "paid from", "deposit to" and "pay from"
+picker lists exactly those, and the register, transfers and reconciliation
+are keyed by the ledger account. A bank feed (SimpleFIN, OFX/QFX, CSV) is the
+account's statement identity and must link to a ledger account.
+
+**One sign rule.** An amount above zero goes into the account (a deposit, a
+card payment), below zero comes out (a payment, a card charge) — the same on
+a bank and on a card; a card's register shows the amount owed as a positive
+number. Statement lines already arrive that way, so nothing is flipped.
+
+**Register entries post** (DR category / CR account for money out, the
+reverse for money in; a bank or card category makes it a transfer). **Transfers**
+are a document: paying a card is a transfer from the bank to the card. Credit
+card charges pick the card (default 2100) and can be voided; so can register
+entries and transfers. A void refuses an entry a completed reconciliation
+holds and hands any matched statement lines back to the review queue.
+
+**Statement lines are a review queue.** On import each line looks for the one
+posting the ledger already has for it (same amount, same side, within five
+days; a check number narrows it; two equal candidates stay unmatched — no
+guessing). Bank rules suggest a category and never post. What is left waits in
+*To review* on the account: **Add** posts it with the category, **Match** links
+it to something already entered, **Exclude** drops it, **Add all categorised**
+posts the rule-suggested lines in one click that says what it skipped.
+
+**Reconciliation runs over the ledger's lines**: the prior statement's balance
+is the beginning balance, ticks clear ledger lines, matched statement lines
+arrive cleared, and completing locks the lines. One open reconciliation per
+account; Abandon keeps the ticks.
+
+**Upgrading.** The old register balance is not posted for you — a migration
+must not write ledger lines you have not reviewed. The Banking page shows the
+number once, with **Post as opening balance** (against 3900 Opening Balance
+Equity, created on demand) or **Dismiss**. Feeds that were never linked get a
+bank account created and linked. Rows ticked in the old reconciliations are
+excluded from the queue (Restore brings one back). API changes: `POST
+/api/banking/accounts` needs `account_id` and takes `opening_balance` (the old
+`balance` is a 422); `POST /api/banking/transactions` needs
+`category_account_id` and returns the journal entry; `GET
+/api/banking/transactions` lists statement lines only; reconciliations take
+`account_id`. The Check Register page is the Banking register (old bookmarks
+redirect).
+
+**QA baseline.** The shared NEONpulse fixture posts its bank account's 42,500
+opening balance now, so the cross-platform trial balance moves from
+3,316,390.46 to 3,358,890.46 — deliberately, once.
+
+**Also in 2.10.0 — PDF receipts scan on Windows and macOS with nothing to
+install (issue #116).** Scanning an image on the desktop apps has used the OS
+engine since 2.9, but a PDF first has to become an image and only poppler's
+`pdftoppm` did that — a tool the installers do not ship, so a PDF on Windows
+answered "PDF scanning requires poppler-utils". The Windows app now renders
+page 1 with Windows.Data.Pdf and the macOS app with Quartz, both already in
+the bundle; poppler-utils stays the Linux path and the fallback anywhere it is
+on PATH. When nothing can render, the message names the fix for the platform
+you are on. `GET /api/ocr/status` reports `pdf` (`windows` | `macos` |
+`poppler` | null) and the Settings OCR row shows it. A renderer's own error text
+(a WinRT HRESULT, a Quartz message) stays in the log; the response says the PDF
+could not be read.
+
+**Dependency: WeasyPrint 69.0 → 70.0** (CVE-2026-55073, GHSA-jf6q-chmf-3h3v: two
+`write_pdf()` channels ignored a document's `url_fetcher`). The app's fetcher
+was already data-URI-only and the templates never pass those channels, so no
+SlowBooks PDF was exposed; the pin moves because the scanner flags 69.0 and
+because 70.0 made the fetcher a class the library enforces everywhere
+(`allowed_protocols`). A regression test renders `file://` images, stylesheets
+and `@import`s and asserts the file's bytes never reach the PDF.
+
+**Three Windows/launcher gaps from the 2.9.x gates closed.** The Windows exe now
+carries a version resource (FileVersion, ProductVersion, ProductName from the
+app version — Properties → Details and inventory tools can read it; the build
+fails if it is missing; issue #106). A headless `--serve-lan` / `--no-window`
+run no longer rewrites the desktop app's `.env` DATABASE_URL or last-opened
+company, so it cannot repoint the next windowed launch (issue #110). Two
+error strings that interpolated another library's exception text (the stored
+scan image reader, the custom AI worker URL parser) now say the problem in the
+app's own words (issue #111).
+
+**macOS release tooling (testing-repo #28, macbase1).** `release.py` retries a
+codesign step up to three times when Apple's timestamp service answers
+"A timestamp was expected but was not found" — that failure alone; any other
+signing error stops the run on the first try. The app bundle's
+`CFBundleVersion` is now `<version>+<12-char git SHA>` so two builds of one
+release can be told apart from the bundle itself (the Windows exe got the same
+treatment in #106); the macOS workflow refuses a bundle without it.
+
+**Cash flow statement follows the cash** (PR #117, @jsonmez). The report used to
+sum the net change of every account — both sides of every journal, non-cash
+accruals such as an unpaid bill, and opening-balance carry-forwards — and could
+overstate the period's cash change several times over. It now reads only the
+non-cash side of journals that touch a bank account (the chart's `bank` kind),
+classifies each cash movement once, and leaves opening-balance entries out;
+transfers between bank accounts net to nothing. Investing shows a purchase as
+an outflow directly, so the old sign flip is gone.
+
 ### v2.9.4 — The company logo on every document; exception text stays in the log
 
 **Every PDF now carries the company logo when one is set.** The logo

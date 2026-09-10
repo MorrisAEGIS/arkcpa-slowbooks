@@ -310,6 +310,7 @@ def _init_company_db(url: str) -> None:
                             name=entry["name"],
                             account_number=entry["account_number"],
                             account_type=AccountType(entry["account_type"]),
+                            bank_kind=entry.get("bank_kind"),
                             is_system=True,
                         )
                     )
@@ -486,12 +487,13 @@ def create_company(
             conn.exec_driver_sql(f"CREATE DATABASE {quoted_db_name}")
         system_engine.dispose()
 
-        # Create schema on the new database
-        new_engine = create_engine(base_url + database_name)
-        from app.database import Base
-
-        Base.metadata.create_all(new_engine)
-        new_engine.dispose()
+        # Bring the new database to the current schema and seed it
+        # (alembic upgrade head + Chart of Accounts), matching what the
+        # SQLite path (manifest_create_company) and the Docker entrypoint
+        # both do. A create_all-only database would boot with zero accounts
+        # and no alembic version stamp, so future upgrades would not apply
+        # cleanly.
+        _init_company_db(base_url + database_name)
 
         # Register in master DB
         company = Company(

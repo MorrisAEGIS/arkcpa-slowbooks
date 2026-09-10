@@ -27,9 +27,8 @@ VALID_ROLES = (ROLE_ADMIN, ROLE_BOOKKEEPER, ROLE_READONLY)
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-        UniqueConstraint(
-            "oidc_issuer", "oidc_subject", name="uq_users_oidc_identity"
-        ),
+        UniqueConstraint("oidc_issuer", "oidc_subject", name="uq_users_oidc_identity"),
+        UniqueConstraint("email", name="uq_users_email"),
     )
 
     id = Column(Integer, primary_key=True, index=True)

@@ -4,9 +4,11 @@
 #
 # Deterministic regex/anchor extraction over Tesseract output — no AI in v1.
 # ZERO Python dependencies by design: we shell out to the user-installed
-# `tesseract` binary (never bundled) and, for PDFs, the poppler-utils tools
-# (pdftoppm/pdfinfo). Both are detected at runtime and degrade gracefully:
-# the route layer turns "binary missing" into a friendly message and the app
+# `tesseract` binary (never bundled; the desktop builds use the OS engine
+# instead, see ocr_engines.py). PDFs are rasterized natively on Windows
+# (Windows.Data.Pdf) and macOS (Quartz), by poppler-utils elsewhere — see
+# pdf_raster.py. Everything is detected at runtime and degrades gracefully:
+# the route layer turns "not available" into a friendly message and the app
 # runs exactly as before.
 # ============================================================================
 
@@ -16,7 +18,6 @@ import os
 import re
 import shutil
 import subprocess
-import tempfile
 import time
 from calendar import monthrange
 from datetime import datetime, timedelta
@@ -71,6 +72,10 @@ def tesseract_info() -> dict:
         return _cache["info"]
     info = _probe_tesseract()
     info["poppler"] = _poppler_available()
+    from app.services import pdf_raster
+
+    # "windows" | "macos" | "poppler" | None — the PDF renderer this box uses
+    info["pdf"] = pdf_raster.pdf_renderer(poppler_ok=info["poppler"])
     _cache.update(at=now, info=info)
     return info
 
@@ -329,71 +334,20 @@ def preprocess_page(data: bytes):
 
 
 # ---------------------------------------------------------------------------
-# PDF handling — poppler-utils (pdftoppm/pdfinfo), page 1 only (spec §3)
+# PDF handling — page 1 only (spec §3); renderers live in pdf_raster.py
 # ---------------------------------------------------------------------------
 
 
 def rasterize_pdf(data: bytes, dpi: int = PDF_DPI):
     """Rasterize PDF page 1 to PNG bytes. Returns (png_bytes, page_count).
 
-    Raises ValueError on missing poppler-utils or a corrupt PDF. Uses temp
-    files (poppler reads files, not stdin); cleaned up in all paths.
-    """
-    if not poppler_available():
-        raise ValueError(
-            "PDF scanning requires poppler-utils (pdftoppm/pdfinfo). "
-            "Install it to scan PDFs — images still work without it."
-        )
-    with tempfile.TemporaryDirectory(prefix="slowbooks-ocr-") as tmp:
-        pdf_path = Path(tmp) / "input.pdf"
-        pdf_path.write_bytes(data)
+    Natively on Windows (Windows.Data.Pdf) and macOS (Quartz) — nothing to
+    install — with poppler-utils as the fallback and the Linux path
+    (app/services/pdf_raster.py, issue #116). Raises ValueError with a
+    per-platform message when nothing can render here."""
+    from app.services import pdf_raster
 
-        page_count = 1
-        try:
-            info = subprocess.run(
-                ["pdfinfo", str(pdf_path)], capture_output=True, text=True, timeout=15
-            )
-            if info.returncode == 0:
-                m = re.search(r"^Pages:\s*(\d+)", info.stdout, re.MULTILINE)
-                if m:
-                    page_count = int(m.group(1))
-        except (OSError, subprocess.TimeoutExpired):
-            pass  # page count is informational only
-
-        prefix = Path(tmp) / "page"
-        try:
-            proc = subprocess.run(
-                [
-                    "pdftoppm",
-                    "-png",
-                    "-r",
-                    str(dpi),
-                    "-f",
-                    "1",
-                    "-l",
-                    "1",
-                    "-singlefile",
-                    str(pdf_path),
-                    str(prefix),
-                ],
-                capture_output=True,
-                timeout=30,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise ValueError(f"pdftoppm could not run: {exc}") from exc
-        if proc.returncode != 0:
-            raise ValueError(
-                "Could not read the PDF"
-                + (
-                    ": " + (proc.stderr or b"").decode("utf-8", errors="replace")[:300]
-                    if proc.stderr
-                    else ""
-                )
-            )
-        png_path = Path(f"{prefix}.png")
-        if not png_path.is_file():
-            raise ValueError("Could not rasterize the PDF (no page output)")
-        return png_path.read_bytes(), page_count
+    return pdf_raster.rasterize(data, dpi, poppler_ok=poppler_available())
 
 
 # ---------------------------------------------------------------------------

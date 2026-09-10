@@ -176,7 +176,7 @@ def test_create_company_migrates_and_registers(data_dir):
         (count,) = conn.execute("SELECT COUNT(*) FROM accounts").fetchone()
         assert count > 0
 
-    manifest = json.loads((data_dir / "companies.json").read_text())
+    manifest = json.loads((data_dir / "companies.json").read_text(encoding="utf-8"))
     assert manifest["companies"] == [
         {"name": "Acme Consulting", "file": "acme-consulting.db"}
     ]
@@ -389,7 +389,7 @@ def test_webview_cache_purged_on_version_change(tmp_path):
     assert not cache.exists()
     assert not code_cache.exists()
     assert cookies.read_bytes() == b"keep me"  # logins survive
-    assert (storage / "app-version.txt").read_text().strip() == "9.9.9"
+    assert (storage / "app-version.txt").read_text(encoding="utf-8").strip() == "9.9.9"
 
     # Same version again: marker short-circuits, nothing recreated/deleted
     probe = profile / "Cache"
@@ -400,7 +400,7 @@ def test_webview_cache_purged_on_version_change(tmp_path):
     # New version purges again
     desktop_launcher._purge_stale_webview_cache(storage, "10.0.0")
     assert not probe.exists()
-    assert (storage / "app-version.txt").read_text().strip() == "10.0.0"
+    assert (storage / "app-version.txt").read_text(encoding="utf-8").strip() == "10.0.0"
 
 
 def test_env_file_follows_data_dir_override(tmp_path, monkeypatch):

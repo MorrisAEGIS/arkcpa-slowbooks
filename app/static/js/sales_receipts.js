@@ -110,7 +110,7 @@ const SalesReceiptsPage = {
             API.get('/accounts'),
             API.get('/settings'),
         ]);
-        const bankAccts = accounts.filter(a => a.account_type === 'asset');
+        const bankAccts = accounts.filter(a => a.bank_kind === 'bank');
 
         const sr = {
             date: todayISO(),

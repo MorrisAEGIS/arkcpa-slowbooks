@@ -124,7 +124,7 @@
             (mode === "setup" ? "Prepare your private accounting workspace" : "Sign in to continue") +
             "</p></header>" +
             innerHTML +
-            '<p class="ark-auth-provenance">Powered by SlowBooks Pro 2026 · Private operator workspace</p>' +
+            '<p class="ark-auth-provenance">Private multi-entity accounting workspace · Built on SlowBooks Pro 2026</p>' +
             "</section></main>";
         return root;
     }
@@ -205,7 +205,7 @@
             : "";
         const setupLink = localPasswordLogin
             ? '<div class="ark-auth-switch">' +
-              '<button class="ark-auth-link" type="button" id="auth-switch-setup">First time? Set up SlowBooks</button></div>'
+              '<button class="ark-auth-link" type="button" id="auth-switch-setup">First time? Set up Ark CPA</button></div>'
             : "";
         const localAccess = localPasswordLogin
             ? (authentikEnabled

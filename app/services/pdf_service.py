@@ -7,7 +7,7 @@ import mimetypes
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
-from weasyprint import HTML, default_url_fetcher
+from weasyprint import HTML, URLFetcher
 
 from app.services import storage
 
@@ -65,7 +65,7 @@ def _company_logo_data_uri(company_settings: dict) -> str:
     return f"data:{mime};base64,{encoded}"
 
 
-def _safe_url_fetcher(url, timeout=10, ssl_context=None):
+class _SafeURLFetcher(URLFetcher):
     """Restrict WeasyPrint to data: URIs only.
 
     Without this, user-controlled HTML (e.g. invoice notes, customer name
@@ -73,10 +73,22 @@ def _safe_url_fetcher(url, timeout=10, ssl_context=None):
     read and embed local files into the generated PDF. Templates currently
     need no external fetches; if that changes, whitelist specific https
     origins here rather than opening up file:// broadly.
+
+    WeasyPrint 70 (CVE-2026-55073) made the fetcher a class so that every
+    channel of write_pdf() honours it; ``allowed_protocols`` is the
+    library's own gate, and ``fetch`` refuses anything else a second time.
     """
-    if url.startswith("data:"):
-        return default_url_fetcher(url, timeout=timeout, ssl_context=ssl_context)
-    raise ValueError(f"URL scheme not allowed in PDF templates: {url!r}")
+
+    def __init__(self):
+        super().__init__(allowed_protocols=("data",))
+
+    def fetch(self, url, headers=None):
+        if not url.lower().startswith("data:"):
+            raise ValueError(f"URL scheme not allowed in PDF templates: {url!r}")
+        return super().fetch(url, headers=headers)
+
+
+_safe_url_fetcher = _SafeURLFetcher()
 
 
 def render_pdf(html_str: str) -> bytes:

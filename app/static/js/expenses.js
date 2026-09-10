@@ -46,20 +46,10 @@ const ExpensesPage = {
         return html;
     },
 
-    // Accounts money can leave from: cash/bank on the asset side, credit
-    // cards on the liability side. The chart has no bank subtype yet, so
-    // this is name/number based — Checking, Savings, Petty Cash, and any
-    // "Credit Card" liability make the list; receivables and prepaids
-    // don't. (The Deposit To dropdown has the same gap; a bank subtype is
-    // the real fix for both.)
+    // Accounts money can leave from: the chart's bank and credit-card
+    // accounts (bank_kind), nothing else.
     paidFromAccounts(accounts) {
-        const bankish = /check|saving|cash|bank|petty/i;
-        const cardish = /credit card|visa|mastercard|amex|card/i;
-        return accounts.filter(a => {
-            if (a.account_type === 'asset') return bankish.test(a.name || '');
-            if (a.account_type === 'liability') return cardish.test(a.name || '');
-            return false;
-        });
+        return accounts.filter(a => a.bank_kind);
     },
 
     async showForm() {

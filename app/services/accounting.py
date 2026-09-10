@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models.transactions import Transaction, TransactionLine
 from app.models.accounts import Account, AccountType
+from app.services import control_accounts
 
 CENT = Decimal("0.01")
 
@@ -234,40 +235,47 @@ def create_journal_entry(
     return txn
 
 
+# The control-account resolvers RAISE when the account is missing; they never
+# return None (issue #119). A caller that treated None as "skip the journal
+# entry" produced a document that looked saved and never reached the books —
+# with a trial balance that still balanced, so nothing downstream noticed.
+# See app/services/control_accounts.py for the registry and the reasoning.
+
+
 def get_ar_account_id(db: Session) -> int:
-    """Get Accounts Receivable account ID (1100)."""
-    acct = db.query(Account).filter(Account.account_number == "1100").first()
-    return acct.id if acct else None
+    """Accounts Receivable (1100). Raises MissingControlAccount."""
+    return control_accounts.resolve(db, "1100")
 
 
 def get_default_income_account_id(db: Session) -> int:
-    """Get default Service Income account ID (4000)."""
-    acct = db.query(Account).filter(Account.account_number == "4000").first()
-    return acct.id if acct else None
+    """Default Service Income (4000). Raises MissingControlAccount."""
+    return control_accounts.resolve(db, "4000")
 
 
 def get_sales_tax_account_id(db: Session) -> int:
-    """Get Sales Tax Payable account ID (2200)."""
-    acct = db.query(Account).filter(Account.account_number == "2200").first()
-    return acct.id if acct else None
+    """Sales Tax Payable (2200). Raises MissingControlAccount."""
+    return control_accounts.resolve(db, "2200")
 
 
 def get_undeposited_funds_id(db: Session) -> int:
-    """Get Undeposited Funds account ID (1200)."""
-    acct = db.query(Account).filter(Account.account_number == "1200").first()
-    return acct.id if acct else None
+    """Undeposited Funds (1200). Raises MissingControlAccount."""
+    return control_accounts.resolve(db, "1200")
 
 
 def get_ap_account_id(db: Session) -> int:
-    """Get Accounts Payable account ID (2000)."""
-    acct = db.query(Account).filter(Account.account_number == "2000").first()
-    return acct.id if acct else None
+    """Accounts Payable (2000). Raises MissingControlAccount."""
+    return control_accounts.resolve(db, "2000")
 
 
 def get_cc_account_id(db: Session) -> int:
-    """Get Credit Card Payable account ID (2100)."""
-    acct = db.query(Account).filter(Account.account_number == "2100").first()
-    return acct.id if acct else None
+    """Credit Card (2100). Raises MissingControlAccount."""
+    return control_accounts.resolve(db, "2100")
+
+
+def get_opening_balance_equity_id(db: Session) -> int:
+    """3900 Opening Balance Equity, created on demand: the offset for a bank
+    or card account's opening balance (issue #114)."""
+    return ensure_account(db, "3900", "Opening Balance Equity", AccountType.EQUITY).id
 
 
 def ensure_account(

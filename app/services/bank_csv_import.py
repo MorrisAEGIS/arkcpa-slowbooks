@@ -419,13 +419,17 @@ def import_csv_transactions(
 
     db.commit()
 
-    # Auto-apply bank rules (shared engine with the OFX importer)
+    matched = 0
     if imported > 0:
         apply_bank_rules(db, bank_account_id)
+        from app.services.ofx_import import _auto_match_new
+
+        matched = _auto_match_new(db, bank_account_id)
 
     return {
         "imported": imported,
         "skipped": skipped,
+        "matched": matched,
         "errors": [],
         "total": len(transactions),
         "format": result["format"],

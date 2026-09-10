@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="theme-color" content="#10130f">
-    <meta name="description" content="Ark CPA — MAGA Energy accounting powered by SlowBooks Pro 2026.">
-    <title>Ark CPA — SlowBooks Pro 2026</title>
+    <meta name="description" content="Ark CPA — private multi-entity accounting and controller workspace.">
+    <title>Ark CPA</title>
     <link rel="icon" href="/static/brand/ark-favicon-32.png" sizes="32x32" type="image/png">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="apple-touch-icon" href="/static/brand/ark-apple-touch-icon.png">
@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="/static/css/dark.css">
     <link rel="stylesheet" href="/static/css/ark-brand.css">
     <link rel="stylesheet" href="/static/css/ark-auth.css">
+    <link rel="stylesheet" href="/static/css/arkcpa.css">
 </head>
 <body class="auth-pending">
     <div id="auth-root" aria-live="polite"></div>
@@ -24,13 +25,13 @@
          ================================================================ -->
     <div id="splash" class="splash-overlay" aria-hidden="true" inert>
         <div class="splash-box">
-            <div class="splash-title">Slowbooks Pro</div>
-            <div class="splash-subtitle">2026 Edition</div>
+            <div class="splash-title">Ark CPA</div>
+            <div class="splash-subtitle">Controller Workspace</div>
             <div class="splash-divider"></div>
             <div class="splash-info">
-                <strong>Free &amp; source-available</strong> &mdash; no caps, no subscriptions<br>
-                Born as a clean-room replacement for QuickBooks&nbsp;Pro&nbsp;2003<br>
-                after Intuit&rsquo;s activation servers died.
+                <strong>Private multi-entity accounting</strong><br>
+                Evidence-led bookkeeping with independent Controller review<br>
+                Built on the source-available SlowBooks Pro 2026 engine.
             </div>
             <div class="splash-whatsnew" id="splash-whatsnew" hidden>
                 <div class="splash-whatsnew-title" id="splash-whatsnew-title"></div>
@@ -51,7 +52,11 @@
         <a href="#page-content" class="skip-link">Skip to main content</a>
         <!-- Toolbar -->
         <div id="topbar">
-            <div class="topbar-brand">Slowbooks Pro <span>2026</span></div>
+            <button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button"
+                    aria-controls="sidebar" aria-expanded="false" aria-label="Open navigation">
+                <span aria-hidden="true">&#9776;</span>
+            </button>
+            <div class="topbar-brand">Ark CPA <span>Controller</span></div>
             <div class="tb-sep"></div>
             <!-- whose books: filled from Settings → company name (app.js loadCompanySettings) -->
             <div class="topbar-company" id="topbar-company" title="Company file in use"></div>
@@ -71,6 +76,8 @@
                     <span class="ark-workspace-chip__lock" aria-hidden="true">&#128274;</span>
                     <span id="ark-workspace-chip-label"></span>
                 </div>
+                <label class="sr-only" for="ark-entity-select">Active legal entity</label>
+                <select id="ark-entity-select" class="ark-entity-select" hidden aria-label="Active legal entity"></select>
                 <button class="tb-btn" id="theme-toggle" title="Toggle Dark Mode">&#9788;</button>
                 <div class="topbar-clock" id="topbar-clock"></div>
                 <button class="tb-btn" id="about-btn">About</button>
@@ -78,14 +85,28 @@
             </div>
         </div>
 
+        <button class="mobile-nav-backdrop" id="mobile-nav-backdrop" type="button"
+                aria-label="Close navigation" hidden></button>
+
         <!-- Main area: sidebar + content -->
         <div id="main-area">
             <nav id="sidebar">
                 <div class="sidebar-header">
-                    <h1>Slowbooks Pro</h1>
-                    <div class="sidebar-edition">2026 Edition</div>
+                    <h1>Ark CPA</h1>
+                    <div class="sidebar-edition">Controller Workspace</div>
                 </div>
                 <ul class="nav-links">
+                    <li class="nav-section">Control</li>
+                    <li><a href="#/ark-cpa" class="nav-link" data-page="ark-cpa">
+                        <span class="nav-icon">&#9672;</span> Control Center</a></li>
+                    <li><a href="#/ark-cpa/evidence" class="nav-link" data-page="ark-cpa-evidence">
+                        <span class="nav-icon">&#9638;</span> Evidence</a></li>
+                    <li><a href="#/ark-cpa/review" class="nav-link" data-page="ark-cpa-review">
+                        <span class="nav-icon">&#10003;</span> Agent Review</a></li>
+                    <li><a href="#/ark-cpa/compliance" class="nav-link" data-page="ark-cpa-compliance">
+                        <span class="nav-icon">&#9878;</span> Compliance</a></li>
+                    <li><a href="#/ark-cpa/entities" class="nav-link" data-page="ark-cpa-entities">
+                        <span class="nav-icon">&#9632;</span> Legal Entities</a></li>
                     <li><a href="#/" class="nav-link active" data-page="dashboard">
                         <span class="nav-icon">&#9632;</span> Dashboard</a></li>
 
@@ -160,8 +181,6 @@
                         <span class="nav-icon">&#10515;</span> Migrate Data</a></li>
                     <li><a href="#/deposits" class="nav-link" data-page="deposits">
                         <span class="nav-icon">&#9660;</span> Make Deposits</a></li>
-                    <li><a href="#/check-register" class="nav-link" data-page="check-register">
-                        <span class="nav-icon">&#9745;</span> Check Register</a></li>
                     <li><a href="#/cc-charges" class="nav-link" data-page="cc-charges">
                         <span class="nav-icon">&#9830;</span> CC Charges</a></li>
 
@@ -203,10 +222,9 @@
                     <!-- External URL: the desktop shim only intercepts
                          same-origin _blank links, so this opens in the
                          system browser (same path as the update badge). -->
-                    <a href="https://github.com/VonHoltenCodes/SlowBooks-Pro-2026/discussions/39"
-                       target="_blank" rel="noopener" class="footer-link">Using SlowBooks for real work? Tell us &rarr;</a>
-                    <span id="app-version">Slowbooks Pro 2026</span><br>
-                    &copy; 2026 Slowbooks
+                    <span class="footer-link">Private · Evidence-led · Human-gated</span>
+                    <span id="app-version">Ark CPA</span><br>
+                    &copy; 2026 MAGA Energy
                 </div>
             </nav>
 
@@ -219,7 +237,7 @@
         <div id="statusbar">
             <span class="status-section" id="status-text">Ready</span>
             <span class="status-sep"></span>
-            <span class="status-section" id="status-company">Company: bookkeeper.sbk</span>
+            <span class="status-section" id="status-company">Entity: select a ledger</span>
             <span class="status-sep"></span>
             <span class="status-section status-right" id="status-date"></span>
         </div>
@@ -239,6 +257,7 @@
 
     <script src="/static/js/desktop_shim.js"></script>
     <script src="/static/js/api.js"></script>
+    <script src="/static/js/arkcpa.js"></script>
     <script src="/static/js/utils.js"></script>
     <script src="/static/js/terms.js"></script>
     <script src="/static/js/ocr_canvas.js"></script>
@@ -292,7 +311,6 @@
     <!-- Phase 9: Forum Bug Fixes & Missing Features -->
     <script src="/static/js/journal.js"></script>
     <script src="/static/js/deposits.js"></script>
-    <script src="/static/js/check_register.js"></script>
     <script src="/static/js/cc_charges.js"></script>
     <!-- Phase 10: Quick Wins + Medium Effort Features -->
     <script src="/static/js/bank_rules.js"></script>

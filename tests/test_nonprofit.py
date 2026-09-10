@@ -1184,11 +1184,11 @@ def test_report_pdfs_are_named_by_their_period_and_land_in_documents():
     from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent
-    launcher = (root / "desktop_launcher.py").read_text()
+    launcher = (root / "desktop_launcher.py").read_text(encoding="utf-8")
     assert '"SlowBooks Pro" / "Reports"' in launcher
     assert "def reveal_path" in launcher
     assert 'return {"success": True, "path": str(dest)}' in launcher
-    shim = (root / "app/static/js/desktop_shim.js").read_text()
+    shim = (root / "app/static/js/desktop_shim.js").read_text(encoding="utf-8")
     assert "reveal_path" in shim and "Saved to" in shim
-    utils = (root / "app/static/js/utils.js").read_text()
+    utils = (root / "app/static/js/utils.js").read_text(encoding="utf-8")
     assert "function toastAction" in utils

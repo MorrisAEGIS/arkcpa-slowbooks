@@ -102,7 +102,9 @@ def validate_worker_url(url: str) -> str:
     try:
         parsed = urlparse(url)
     except Exception as exc:  # noqa: BLE001 — urlparse is famously lenient
-        raise ValueError(f"worker_url is not parseable: {exc}") from exc
+        # ValueError is a user-facing string (safe_message); the parser's
+        # text is not ours to show (issue #111).
+        raise ValueError("worker_url is not a parseable URL") from exc
 
     # --- Scheme: HTTPS only, no exceptions (MITM protection) --------------
     if parsed.scheme != "https":

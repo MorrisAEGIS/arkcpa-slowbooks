@@ -142,6 +142,17 @@ jobs:
           if ($p.ExitCode -ne 0) { Write-Error "Smoke test failed (exit $($p.ExitCode))"; exit 1 }
           Write-Host "Smoke test passed."
 
+      - name: Verify the exe's version resource (issue #106)
+        shell: pwsh
+        run: |
+          $exe = "packaging\windows\dist\SlowBooksPro\SlowBooksPro.exe"
+          $expected = (Select-String -Path app\__init__.py -Pattern '__version__ = "([^"]+)"').Matches[0].Groups[1].Value
+          $vi = (Get-Item $exe).VersionInfo
+          Write-Host "FileVersion=$($vi.FileVersion) ProductVersion=$($vi.ProductVersion) ProductName=$($vi.ProductName)"
+          if ($vi.ProductVersion -ne $expected -or $vi.FileVersion -ne $expected -or -not $vi.ProductName) {
+            Write-Error "version resource missing or wrong (expected $expected)"; exit 1
+          }
+
       # Sign SlowBooksPro.exe BEFORE zipping so the portable archive
       # contains the signed binary. OIDC login; no client secret stored.
       - name: Azure login (OIDC for Trusted Signing)

@@ -23,7 +23,7 @@ BUSINESS_WORD = re.compile(
 
 
 def _js_dictionary() -> dict:
-    src = TERMS_JS.read_text()
+    src = TERMS_JS.read_text(encoding="utf-8")
     m = re.search(r"const TERMS_NONPROFIT = (\{.*?\});", src, re.S)
     assert m, "TERMS_NONPROFIT literal not found in terms.js"
     return json.loads(m.group(1))
@@ -99,7 +99,7 @@ def test_filename_forms():
 
 
 def _shell_texts():
-    html = INDEX.read_text()
+    html = INDEX.read_text(encoding="utf-8")
     texts = re.findall(r'<li class="nav-section">([^<]+)</li>', html)
     for m in re.finditer(
         r'<a href="#/[^"]*" class="nav-link[^"]*"[^>]*>.*?</a>', html, re.S
@@ -120,9 +120,9 @@ def test_nav_and_toolbar_labels_with_business_words_are_keys():
 
 
 def test_shell_loads_terms_before_pages():
-    html = INDEX.read_text()
+    html = INDEX.read_text(encoding="utf-8")
     assert html.index("terms.js") < html.index("customers.js")
-    app_js = (ROOT / "app/static/js/app.js").read_text()
+    app_js = (ROOT / "app/static/js/app.js").read_text(encoding="utf-8")
     assert "App.loadCompanySettings().then(" in app_js
     assert "App.applyTerminology();" in app_js
 
@@ -226,7 +226,7 @@ def test_chokepoint_literals_go_through_T():
     for f in sorted((ROOT / "app/static/js").glob("*.js")):
         if f.name in LEAVE_ALONE:
             continue
-        src = f.read_text()
+        src = f.read_text(encoding="utf-8")
         for pat in CHOKEPOINT_PATTERNS:
             for m in re.finditer(pat, src):
                 offenders.append(f"{f.name}: {m.group(0)[:70]}")
@@ -234,7 +234,7 @@ def test_chokepoint_literals_go_through_T():
 
 
 def test_route_labels_are_rewritten_at_boot():
-    app_js = (ROOT / "app/static/js/app.js").read_text()
+    app_js = (ROOT / "app/static/js/app.js").read_text(encoding="utf-8")
     labels = re.findall(r"label:\s*'([^']+)'", app_js)
     business = [lb for lb in labels if BUSINESS_WORD.search(lb)]
     assert business, "expected business-worded route labels to exist"
@@ -243,10 +243,10 @@ def test_route_labels_are_rewritten_at_boot():
 
 
 def test_pdf_templates_use_terms_for_document_names():
-    inv = (ROOT / "app/templates/invoice_pdf.html").read_text()
+    inv = (ROOT / "app/templates/invoice_pdf.html").read_text(encoding="utf-8")
     # the printed face is literal by design: the doc kind decides it
     assert "doc_kind" in inv and "terms('Invoice')" not in inv
-    stmt = (ROOT / "app/templates/statement_pdf.html").read_text()
+    stmt = (ROOT / "app/templates/statement_pdf.html").read_text(encoding="utf-8")
     assert "terms('Total Invoiced')" in stmt
 
 
@@ -355,7 +355,7 @@ def _sweep_hits():
     for path in sorted((ROOT / "app/static/js").glob("*.js")):
         if path.name in _SWEEP_EXEMPT:
             continue
-        for lineno, line in enumerate(path.read_text().split("\n"), 1):
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
             if re.search(r"\bT\(|Terms\.(text|isNonprofit)\(", line):
                 continue
             if line.lstrip().startswith(("//", "*", "/*")):
@@ -425,7 +425,7 @@ def test_every_T_call_resolves_to_a_dictionary_key():
 
     bad = []
     for path in sorted((ROOT / "app/static/js").glob("*.js")):
-        for lineno, line in enumerate(path.read_text().split("\n"), 1):
+        for lineno, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
             for m in re.finditer(r"\bT\(\s*(['\"])(.*?)\1\s*\)", line):
                 if not resolves(m.group(2)):
                     bad.append(f"{path.name}:{lineno}: T({m.group(2)!r})")

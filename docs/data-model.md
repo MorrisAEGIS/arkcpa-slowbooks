@@ -17,10 +17,11 @@ files under `migrations/versions/`; for model code, see `app/models/`.
 | `payments` | Payment records |
 | `payment_allocations` | Maps payments to invoices (many-to-many) |
 | `transactions` | Journal entry headers |
-| `transaction_lines` | Journal entry splits (debit OR credit) |
-| `bank_accounts` | Bank accounts linked to COA |
-| `bank_transactions` | Bank register entries (with OFX import fields) |
-| `reconciliations` | Bank reconciliation sessions |
+| `transaction_lines` | Journal entry splits (debit OR credit); `cleared` / `reconciliation_id` on bank-account lines |
+| `accounts.bank_kind` | `bank` / `credit_card` — which chart accounts the register, pickers and transfers use |
+| `bank_accounts` | A bank feed: the statement identity of a ledger account (`account_id`); `legacy_balance` = the pre-2.10 register balance until posted or dismissed |
+| `bank_transactions` | Statement lines (feeds, OFX/CSV imports) with `match_status` and the ledger line they match (`transaction_line_id`) |
+| `reconciliations` | Reconciliation sessions over a ledger account's lines (`account_id`, `beginning_balance`, `cleared_total`) |
 | `settings` | Company settings key-value store |
 | `audit_log` | Automatic change tracking for all entities |
 | `purchase_orders` | Purchase order headers |

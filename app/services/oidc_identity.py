@@ -1,10 +1,10 @@
 """Fail-closed binding between Authentik identities and ArkCPA principals.
 
-ArkCPA private workspaces are deployed as separate stacks. Each stack has
-its own Authentik application/group, database, file volume, backup volume,
-and encryption secrets. Inside a stack this module additionally pins the
-approved operator to Authentik's immutable ``(issuer, sub)`` identity so a
-later email or display-name change cannot transfer the account.
+Ark CPA uses one UI and one Authentik application with multiple named users.
+This module pins every approved operator to Authentik's immutable
+``(issuer, sub)`` identity so a later email or display-name change cannot
+transfer the account. Legal-entity membership is enforced separately by the
+Ark CPA control plane.
 """
 
 from __future__ import annotations
@@ -19,7 +19,8 @@ from sqlalchemy.orm import Session
 from app.models.users import ROLE_ADMIN, User
 
 _USERNAME_SAFE = re.compile(r"[^a-z0-9._-]+")
-_OIDC_ONLY_PASSWORD = "!oidc-only"
+# This deliberately cannot verify as a password hash; OIDC is the only path.
+_OIDC_ONLY_PASSWORD = "!oidc-only"  # nosec B105
 
 
 def _normalized_email(value: Any) -> str:
@@ -59,10 +60,10 @@ def resolve_oidc_principal(
 ) -> User:
     """Return the exact local principal for verified OIDC claims.
 
-    Existing bindings resolve only by ``(issuer, sub)``. The first binding
-    is allowed only when the verified email exactly matches the stack's
-    explicit ``AUTHENTIK_OIDC_BOOTSTRAP_EMAIL``. That one-time value is not
-    used for later logins and cannot become account recovery or transfer.
+    Existing bindings resolve only by ``(issuer, sub)``. A new binding requires
+    either one explicitly preprovisioned local user with the same verified
+    email or the one-time ``AUTHENTIK_OIDC_BOOTSTRAP_EMAIL``. Neither email
+    path can transfer an identity after its immutable subject is bound.
     """
 
     subject = str(claims.get("sub") or "").strip()
@@ -83,13 +84,14 @@ def resolve_oidc_principal(
         if not user.is_active:
             raise PermissionError("OIDC principal is inactive")
         # Profile drift is safe to refresh after immutable identity match.
+        email_owner = (
+            db.query(User.id).filter(User.email == email, User.id != user.id).first()
+        )
+        if email_owner is not None:
+            raise PermissionError("OIDC email is already assigned to another principal")
         user.email = email
         user.display_name = _display_name(claims, user.username)
         return user
-
-    bootstrap_email = _normalized_email(env.get("AUTHENTIK_OIDC_BOOTSTRAP_EMAIL"))
-    if not bootstrap_email or not secrets.compare_digest(email, bootstrap_email):
-        raise PermissionError("OIDC identity is not provisioned for this workspace")
 
     # Refuse an attempted subject change for an already-bound email. An
     # operator must clear/rebind it through an explicit recovery procedure.
@@ -100,6 +102,30 @@ def resolve_oidc_principal(
         is not None
     ):
         raise PermissionError("OIDC subject changed for a provisioned identity")
+
+    provisioned = (
+        db.query(User)
+        .filter(
+            User.email == email,
+            User.is_active,
+            User.oidc_subject.is_(None),
+            User.oidc_issuer.is_(None),
+        )
+        .all()
+    )
+    if len(provisioned) == 1:
+        user = provisioned[0]
+        user.oidc_issuer = normalized_issuer
+        user.oidc_subject = subject
+        user.display_name = _display_name(claims, user.username)
+        db.flush()
+        return user
+    if len(provisioned) > 1:
+        raise PermissionError("OIDC email matches multiple local principals")
+
+    bootstrap_email = _normalized_email(env.get("AUTHENTIK_OIDC_BOOTSTRAP_EMAIL"))
+    if not bootstrap_email or not secrets.compare_digest(email, bootstrap_email):
+        raise PermissionError("OIDC identity is not provisioned for this workspace")
 
     all_users = db.query(User).order_by(User.id).all()
     unbound_admins = [

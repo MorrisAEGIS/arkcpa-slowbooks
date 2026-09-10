@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -15,20 +14,24 @@ def read(relative: str) -> str:
 
 def test_static_shell_declares_ark_cpa_identity_and_icons():
     html = read("index.html")
-    assert "<title>Ark CPA — SlowBooks Pro 2026</title>" in html
+    assert "<title>Ark CPA</title>" in html
+    assert '<div class="topbar-brand">Ark CPA <span>Controller</span></div>' in html
+    assert "<h1>Ark CPA</h1>" in html
     assert 'class="auth-pending"' in html
     assert 'id="auth-root"' in html
     assert 'href="/static/brand/ark-favicon-32.png"' in html
     assert 'href="/static/brand/ark-apple-touch-icon.png"' in html
     assert 'href="/static/manifest.webmanifest"' in html
-    assert 'viewport-fit=cover' in html
+    assert "viewport-fit=cover" in html
 
 
 def test_login_is_a_dedicated_inert_application_state(unauthed_client):
     response = unauthed_client.get("/login")
     assert response.status_code == 200
     assert 'id="app" aria-hidden="true" inert' in response.text
-    assert 'id="splash" class="splash-overlay" aria-hidden="true" inert' in response.text
+    assert (
+        'id="splash" class="splash-overlay" aria-hidden="true" inert' in response.text
+    )
     assert "font-src 'self' data:" in response.headers["content-security-policy"]
 
 
@@ -58,9 +61,9 @@ def test_auth_markup_uses_ark_classes_without_inline_presentation():
     assert "MAGA Energy / Accounting" in source
     assert "Continue with Authentik" in source
     assert "Local recovery access" in source
-    assert "Powered by SlowBooks Pro 2026" in source
+    assert "Built on SlowBooks Pro 2026" in source
     assert 'window.location.pathname !== "/login"' in source
-    assert 'element.inert = true' in source
+    assert "element.inert = true" in source
     assert 'style="' not in source
     assert "primaryButtonStyle" not in source
 
@@ -77,8 +80,10 @@ def test_living_ark_motion_and_reduced_motion_contract():
 
 
 def test_brand_foundation_does_not_load_remote_fonts():
-    combined = read("index.html") + read("app/static/css/style.css") + read(
-        "app/static/css/ark-brand.css"
+    combined = (
+        read("index.html")
+        + read("app/static/css/style.css")
+        + read("app/static/css/ark-brand.css")
     )
     assert "fonts.googleapis.com" not in combined
     assert "fonts.gstatic.com" not in combined

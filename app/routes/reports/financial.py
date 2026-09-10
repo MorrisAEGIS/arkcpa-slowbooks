@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from fastapi import Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import func as sqlfunc
+from sqlalchemy import func as sqlfunc, select
 
 from app.database import get_db
 from app.models.accounts import Account, AccountType
@@ -13,7 +13,7 @@ from app.services.terminology import Terms, terms_from_db
 
 # Debit-normal account types. For these, natural balance = debit - credit.
 # For the rest (liability, equity, income), natural balance = credit - debit.
-_DEBIT_NORMAL = {AccountType.ASSET, AccountType.EXPENSE, AccountType.COGS}
+from app.services.bank_register import DEBIT_NORMAL as _DEBIT_NORMAL  # noqa: E402
 
 
 def _totals_by_account(db, acct_type, date_start=None, date_end=None):
@@ -210,103 +210,24 @@ def account_transactions(
     end_date: date = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    """Phase 11: drill-down support. Return every journal entry line hitting
-    a given account in the date range, with source document linkage so the
+    """Phase 11: drill-down support. Every journal entry line hitting a
+    given account in the date range, with source document linkage so the
     UI can jump from a P&L row straight to the underlying invoice/bill/JE.
+    The register service (bank_register.account_register) does the work —
+    the bank register is the same view."""
+    from app.services.bank_register import account_register
 
-    Response:
-      {
-        account: {id, number, name, type, natural_balance},
-        start_date, end_date,
-        period_debit, period_credit, period_net,
-        entries: [
-          {transaction_id, date, description, reference, debit, credit,
-           running_balance, source_type, source_id, source_link}
-        ]
-      }
-    """
     acct = db.query(Account).filter(Account.id == account_id).first()
     if not acct:
         raise HTTPException(status_code=404, detail="Account not found")
-
     if not start_date:
         start_date = date(date.today().year, 1, 1)
     if not end_date:
         end_date = date.today()
-
-    q = (
-        db.query(TransactionLine, Transaction)
-        .join(Transaction, TransactionLine.transaction_id == Transaction.id)
-        .filter(TransactionLine.account_id == account_id)
-        .filter(Transaction.date >= start_date, Transaction.date <= end_date)
-        .order_by(Transaction.date, Transaction.id, TransactionLine.id)
-    )
-
-    # Running balance is useful for reconciliation-style drill-downs.
-    # Sign follows the account's natural balance (debit-normal vs credit-normal).
-    debit_normal = acct.account_type in _DEBIT_NORMAL
-    running = Decimal("0")
-    period_debit = Decimal("0")
-    period_credit = Decimal("0")
-    entries = []
-
-    for tl, txn in q.all():
-        dr = tl.debit or Decimal("0")
-        cr = tl.credit or Decimal("0")
-        period_debit += dr
-        period_credit += cr
-        delta = (dr - cr) if debit_normal else (cr - dr)
-        running += delta
-
-        # Build a friendly source link the SPA can route to.
-        source_link = None
-        if txn.source_type == "invoice" and txn.source_id:
-            source_link = f"/#/invoices/{txn.source_id}"
-        elif txn.source_type == "bill" and txn.source_id:
-            source_link = f"/#/bills/{txn.source_id}"
-        elif txn.source_type == "payment" and txn.source_id:
-            source_link = f"/#/payments/{txn.source_id}"
-        elif txn.source_type == "bill_payment" and txn.source_id:
-            source_link = f"/#/bill-payments/{txn.source_id}"
-        elif txn.source_type in ("journal", "manual_journal") and txn.source_id:
-            source_link = f"/#/journal/{txn.source_id}"
-
-        entries.append(
-            {
-                "transaction_id": txn.id,
-                "date": txn.date.isoformat(),
-                "description": txn.description or tl.description or "",
-                "reference": txn.reference or "",
-                "debit": float(dr),
-                "credit": float(cr),
-                "running_balance": float(running),
-                "source_type": txn.source_type,
-                "source_id": txn.source_id,
-                "source_link": source_link,
-            }
-        )
-
-    period_net = (
-        (period_debit - period_credit)
-        if debit_normal
-        else (period_credit - period_debit)
-    )
-
-    return {
-        "account": {
-            "id": acct.id,
-            "number": acct.account_number,
-            "name": acct.name,
-            "type": acct.account_type.value,
-            "natural_balance": "debit" if debit_normal else "credit",
-        },
-        "start_date": start_date.isoformat(),
-        "end_date": end_date.isoformat(),
-        "period_debit": float(period_debit),
-        "period_credit": float(period_credit),
-        "period_net": float(period_net),
-        "entries": entries,
-    }
+    out = account_register(db, acct, start_date, end_date)
+    out["start_date"] = start_date.isoformat()
+    out["end_date"] = end_date.isoformat()
+    return out
 
 
 # ============================================================================
@@ -380,7 +301,7 @@ def cash_flow(
     end_date: date = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    """Cash Flow Statement: Operating, Investing, Financing sections."""
+    """Cash flow from the non-cash side of journals that move linked cash."""
     if not start_date:
         start_date = date(date.today().year, 1, 1)
     if not end_date:
@@ -396,6 +317,13 @@ def cash_flow(
         AccountType.EQUITY: "financing",
     }
 
+    # Cash = the chart's bank accounts (2.10: Account.bank_kind), whether or
+    # not a feed is linked; a card is a liability, not cash.
+    cash_account_ids = select(Account.id).where(Account.bank_kind == "bank")
+    cash_transaction_ids = select(TransactionLine.transaction_id).where(
+        TransactionLine.account_id.in_(cash_account_ids)
+    )
+
     results = (
         db.query(
             Account.name,
@@ -407,7 +335,13 @@ def cash_flow(
         )
         .join(TransactionLine, TransactionLine.account_id == Account.id)
         .join(Transaction, TransactionLine.transaction_id == Transaction.id)
-        .filter(Transaction.date >= start_date, Transaction.date <= end_date)
+        .filter(
+            Transaction.date >= start_date,
+            Transaction.date <= end_date,
+            Transaction.id.in_(cash_transaction_ids),
+            ~TransactionLine.account_id.in_(cash_account_ids),
+            sqlfunc.coalesce(Transaction.source_type, "") != "opening_balance",
+        )
         .group_by(
             Account.id, Account.name, Account.account_number, Account.account_type
         )
@@ -421,10 +355,6 @@ def cash_flow(
     for acct_name, acct_num, acct_type, net_change in results:
         section = section_map.get(acct_type, "operating")
         amount = float(net_change)
-        # For investing (assets), net cash flow is negative of net change
-        # (buying assets = cash outflow)
-        if section == "investing":
-            amount = -amount
         sections[section].append(
             {
                 "account_name": acct_name,

@@ -60,38 +60,14 @@ def delete_rule(rule_id: int, db: Session = Depends(get_db)):
 
 @router.post("/apply")
 def apply_rules(db: Session = Depends(get_db)):
-    """Apply all active rules to unmatched bank transactions."""
-    rules = (
-        db.query(BankRule)
-        .filter(BankRule.is_active)
-        .order_by(BankRule.priority.desc())
-        .all()
-    )
-    unmatched = (
+    """Apply all active rules to every unmatched statement line (category
+    only — adding to the books stays a click)."""
+    from app.services.bank_rules_engine import apply_bank_rules
+
+    matched = apply_bank_rules(db)
+    total_unmatched = (
         db.query(BankTransaction)
         .filter(BankTransaction.match_status == "unmatched")
-        .all()
+        .count()
     )
-
-    matched = 0
-    for txn in unmatched:
-        payee = (txn.payee or "").lower()
-        for rule in rules:
-            pattern = rule.pattern.lower()
-            hit = False
-            if rule.rule_type == "contains" and pattern in payee:
-                hit = True
-            elif rule.rule_type == "starts_with" and payee.startswith(pattern):
-                hit = True
-            elif rule.rule_type == "exact" and payee == pattern:
-                hit = True
-
-            if hit:
-                if rule.account_id:
-                    txn.category_account_id = rule.account_id
-                txn.match_status = "auto"
-                matched += 1
-                break
-
-    db.commit()
-    return {"matched": matched, "total_unmatched": len(unmatched)}
+    return {"matched": matched, "total_unmatched": total_unmatched}

@@ -231,7 +231,7 @@ def export_csv(
     # Branded header — written as comment-style rows above the data table.
     # Excel/Sheets will treat them as text rows above the headerline. The
     # _csv_safe wrapping prevents formula-injection on company_name.
-    writer.writerow(["# Slowbooks Pro 2026 — Analytics Snapshot"])
+    writer.writerow(["# Ark CPA — Analytics Snapshot"])
     writer.writerow([f"# Company: {_csv_safe(company_name)}"])
     writer.writerow([f"# Period: {label} ({s.isoformat()} to {e.isoformat()})"])
     writer.writerow([f"# Generated: {datetime.now(timezone.utc).isoformat()}"])
@@ -285,7 +285,7 @@ def export_csv(
             ["customer_profit", _csv_safe(customer), "", f"{info['revenue']:.2f}"]
         )
 
-    filename = f"slowbooks-analytics-{date.today().isoformat()}.csv"
+    filename = f"ark-cpa-analytics-{date.today().isoformat()}.csv"
     return Response(
         content=buf.getvalue(),
         media_type="text/csv",
@@ -318,7 +318,7 @@ def export_pdf(
     company_settings = get_all_settings(db)
 
     pdf_bytes = generate_analytics_pdf(dashboard, period_meta, company_settings)
-    filename = f"slowbooks-analytics-{date.today().isoformat()}.pdf"
+    filename = f"ark-cpa-analytics-{date.today().isoformat()}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
