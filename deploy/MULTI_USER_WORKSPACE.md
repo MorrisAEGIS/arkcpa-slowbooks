@@ -17,7 +17,7 @@ Provision or reconcile the main application, access group, and environment:
 
 ```bash
 python deploy/provision_authentik_oidc.py \
-  --env-file /home/novaadmin/.config/arkcpa/workspaces/main.env \
+  --env-file /home/novaadmin/arkcpa-slowbooks/.env \
   --member-username maesa \
   --company-name "MAGA Energy" \
   --workspace-id maga-energy \
