@@ -1,5 +1,5 @@
 /**
- * Ark CPA — native ARK sign-in and SlowBooks local setup.
+ * Ark CPA — native ARK sign-in and local recovery setup.
  *
  * Renders a dedicated login/setup state when the API returns 401, or when
  * /api/auth/status reports first-time setup is needed. The accounting shell
@@ -102,7 +102,7 @@
         return (
             '<span class="ark-mark" role="img" aria-label="Noah\'s Ark, the ARK mark">' +
             '<span class="ark-mark__aura" aria-hidden="true"></span>' +
-            '<img class="ark-mark__image" src="/static/brand/ark-living-mark.png" alt="">' +
+            '<img class="ark-mark__image" src="/static/brand/ark-living-mark.png?v=2.9.5" alt="">' +
             '<span class="ark-mark__water" aria-hidden="true"></span>' +
             "</span>"
         );
@@ -118,13 +118,13 @@
             '<section class="ark-auth-shell" aria-labelledby="auth-title">' +
             '<header class="ark-auth-identity">' +
             livingMarkHTML() +
-            '<p class="ark-auth-eyebrow">MAGA Energy / Accounting</p>' +
+            '<p class="ark-auth-eyebrow">MAGA Energy accounting</p>' +
             '<h1 class="ark-auth-title" id="auth-title">Ark CPA</h1>' +
             '<p class="ark-auth-subtitle">' +
             (mode === "setup" ? "Prepare your private accounting workspace" : "Sign in to continue") +
             "</p></header>" +
             innerHTML +
-            '<p class="ark-auth-provenance">Powered by SlowBooks Pro 2026 · Private operator workspace</p>' +
+            '<p class="ark-auth-provenance">MAGA Energy · Private accounting workspace</p>' +
             "</section></main>";
         return root;
     }
@@ -205,7 +205,7 @@
             : "";
         const setupLink = localPasswordLogin
             ? '<div class="ark-auth-switch">' +
-              '<button class="ark-auth-link" type="button" id="auth-switch-setup">First time? Set up SlowBooks</button></div>'
+              '<button class="ark-auth-link" type="button" id="auth-switch-setup">First time? Set up Ark CPA</button></div>'
             : "";
         const localAccess = localPasswordLogin
             ? (authentikEnabled
@@ -225,7 +225,7 @@
         return (
             '<div class="ark-auth-panel"><form id="auth-form" aria-label="Ark CPA sign in">' +
             '<p class="ark-auth-intro">' +
-            (authentikEnabled ? "Use your ARK identity to continue." :
+            (authentikEnabled ? "Use your ARK identity to access your private accounting workspace." :
                 (multiUser ? "Sign in to continue." : "Enter your password to continue.")) +
             "</p>" + authentikButton + divider + localAccess +
             '<p class="ark-auth-error" id="auth-error" role="alert" aria-live="assertive">' +
@@ -261,7 +261,7 @@
             if (!input || !btn) return;
             errBox.textContent = "";
             btn.disabled = true;
-            btn.textContent = "...";
+            btn.textContent = "Signing in…";
             try {
                 const body = { password: input.value };
                 if (userInput) body.username = userInput.value.trim();
@@ -397,7 +397,7 @@
             }
 
             btn.disabled = true;
-            btn.textContent = "...";
+            btn.textContent = "Creating workspace…";
             try {
                 await postJSON(AUTH_SETUP_URL, collectSetupPayload(overlay));
                 removeOverlay();

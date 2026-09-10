@@ -844,15 +844,15 @@ const SettingsPage = {
                 <p class="ai-worker-help">
                     Deploy <code>cloudflare/worker.js</code> in your own
                     Cloudflare account — the real AI credentials live inside
-                    Cloudflare as a Worker secret, not in Slowbooks' database.
-                    Slowbooks only holds the shared Bearer token. See
+                    Cloudflare as a Worker secret, not in Ark CPA's database.
+                    Ark CPA only holds the shared Bearer token. See
                     <code>cloudflare/README.md</code> for the 5-minute setup.
                 </p>
                 <label class="form-field">
                     <span>Worker URL <em class="ai-worker-required">(https only)</em></span>
                     <input type="url" id="ai-settings-worker-url"
                            value="${escapeHtml(cfg.worker_url || '')}"
-                           placeholder="https://slowbooks-ai.yourname.workers.dev/v1/chat/completions"
+                           placeholder="https://ark-cpa-ai.yourname.workers.dev/v1/chat/completions"
                            autocomplete="off" spellcheck="false">
                 </label>
                 <p class="ai-worker-security">
@@ -866,7 +866,7 @@ const SettingsPage = {
                       style="${needsEndpoint ? '' : 'display:none'}">
                 <legend>Custom OpenAI-Compatible Endpoint</legend>
                 <p class="ai-worker-help">
-                    Point Slowbooks at any OpenAI-compatible chat API on the
+                    Point Ark CPA at any OpenAI-compatible chat API on the
                     public internet — another vendor's <code>/v1</code> base URL,
                     or a gateway you host. <code>/chat/completions</code> is
                     appended automatically if you don't include it. A model on
@@ -1396,4 +1396,3 @@ SettingsPage.toggleEquipment = async function (id, active) {
         SettingsPage.loadEquipment();
     } catch (err) { toast(err.message, 'error'); }
 };
-

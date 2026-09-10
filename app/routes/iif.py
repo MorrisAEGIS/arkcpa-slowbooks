@@ -69,7 +69,7 @@ def _parse_date(s: str) -> date:
 @router.get("/export/all")
 def export_all_iif(db: Session = Depends(get_db)):
     content = export_all(db)
-    return _iif_response(content, "slowbooks_export.iif")
+    return _iif_response(content, "ark-cpa-export.iif")
 
 
 @router.get("/export/accounts")
@@ -165,7 +165,7 @@ def export_estimates_iif(db: Session = Depends(get_db)):
 
 @router.post("/import", response_model=IIFImportResult)
 async def import_iif(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    """Upload and import an IIF file into Slowbooks.
+    """Upload and import an IIF file into Ark CPA.
 
     Processes accounts, customers, vendors, items, and transactions.
     Skips duplicates and collects per-row errors.

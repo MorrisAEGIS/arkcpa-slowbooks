@@ -84,6 +84,8 @@ const App = {
         }
         if (!route) { $('#page-content').innerHTML = '<p>Page not found</p>'; return; }
 
+        App.closeNavigation();
+
         // Update active nav
         $$('.nav-link').forEach(link => {
             link.classList.toggle('active', link.dataset.page === route.page);
@@ -128,26 +130,90 @@ const App = {
 
     showAbout() {
         const splash = $('#splash');
-        if (splash) splash.classList.remove('hidden');
+        if (!splash) return;
+        splash.classList.remove('hidden');
+        splash.removeAttribute('inert');
+        splash.setAttribute('aria-hidden', 'false');
+        const close = $('#splash-dismiss');
+        if (close) close.focus();
     },
 
-    // Theme toggle — Feature 12: Dark Mode
+    hideAbout() {
+        const splash = $('#splash');
+        if (!splash) return;
+        splash.classList.add('hidden');
+        splash.setAttribute('inert', '');
+        splash.setAttribute('aria-hidden', 'true');
+        const about = $('#about-btn');
+        if (about) about.focus();
+    },
+
+    applyTheme(theme) {
+        const next = theme === 'light' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        const themeColor = document.querySelector('meta[name="theme-color"]');
+        if (themeColor) themeColor.content = next === 'dark' ? '#111712' : '#eee9dd';
+        const btn = $('#theme-toggle');
+        if (btn) {
+            const target = next === 'dark' ? 'light' : 'dark';
+            btn.innerHTML = next === 'dark' ? '&#9788;' : '&#9790;';
+            btn.setAttribute('aria-label', `Use ${target} theme`);
+            btn.title = `Use ${target} theme`;
+        }
+    },
+
+    // Ark CPA is dark-first, with a durable light workspace option.
     toggleTheme() {
         const current = document.documentElement.getAttribute('data-theme');
         const next = current === 'dark' ? 'light' : 'dark';
-        document.documentElement.setAttribute('data-theme', next);
-        localStorage.setItem('slowbooks-theme', next);
-        const btn = $('#theme-toggle');
-        if (btn) btn.innerHTML = next === 'dark' ? '&#9788;' : '&#9790;';
+        App.applyTheme(next);
+        localStorage.setItem('ark-cpa-theme', next);
     },
 
     loadTheme() {
-        const saved = localStorage.getItem('slowbooks-theme');
-        if (saved === 'dark') {
-            document.documentElement.setAttribute('data-theme', 'dark');
-            const btn = $('#theme-toggle');
-            if (btn) btn.innerHTML = '&#9788;';
+        const current = localStorage.getItem('ark-cpa-theme');
+        const legacy = localStorage.getItem('slowbooks-theme');
+        const saved = current || legacy;
+        const theme = saved === 'light' ? 'light' : 'dark';
+        App.applyTheme(theme);
+        if (!current && legacy) {
+            localStorage.setItem('ark-cpa-theme', theme);
         }
+    },
+
+    openNavigation() {
+        document.body.classList.add('nav-open');
+        const toggle = $('#nav-toggle');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'true');
+            toggle.setAttribute('aria-label', 'Close navigation');
+        }
+        const first = document.querySelector('#sidebar .nav-link');
+        if (first && window.matchMedia('(max-width: 960px)').matches) first.focus();
+    },
+
+    closeNavigation() {
+        document.body.classList.remove('nav-open');
+        const toggle = $('#nav-toggle');
+        if (toggle) {
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.setAttribute('aria-label', 'Open navigation');
+        }
+    },
+
+    bindResponsiveShell() {
+        const toggle = $('#nav-toggle');
+        const close = $('#sidebar-close');
+        const backdrop = $('#nav-backdrop');
+        if (toggle) toggle.addEventListener('click', () => {
+            if (document.body.classList.contains('nav-open')) App.closeNavigation();
+            else App.openNavigation();
+        });
+        if (close) close.addEventListener('click', App.closeNavigation);
+        if (backdrop) backdrop.addEventListener('click', App.closeNavigation);
+        window.addEventListener('resize', () => {
+            if (!window.matchMedia('(max-width: 960px)').matches) App.closeNavigation();
+        });
     },
 
     async renderAccounts() {
@@ -491,7 +557,7 @@ const App = {
             if (companyEl && s.company_name && s.company_name !== 'My Company') {
                 companyEl.textContent = `Company: ${s.company_name}`;
                 // the window / tab title and the topbar brand say whose books these are
-                document.title = `${s.company_name} — Slowbooks Pro 2026`;
+                document.title = `${s.company_name} — Ark CPA`;
                 const brand = $('#topbar-company');
                 if (brand) brand.textContent = s.company_name;
             }
@@ -545,6 +611,7 @@ const App = {
 
         // Load saved theme
         App.loadTheme();
+        App.bindResponsiveShell();
 
         // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
@@ -569,7 +636,11 @@ const App = {
             // Alt+D: toggle dark mode (Feature 12)
             if (e.altKey && e.key === 'd') { App.toggleTheme(); e.preventDefault(); }
             // Escape: close modal
-            if (e.key === 'Escape') { closeModal(); }
+            if (e.key === 'Escape') {
+                if (!$('#splash')?.classList.contains('hidden')) App.hideAbout();
+                else if (document.body.classList.contains('nav-open')) App.closeNavigation();
+                else closeModal();
+            }
             // Ctrl+K or /: focus search (when not in an input)
             if ((e.ctrlKey && e.key === 'k') || (e.key === '/' && !e.target.closest('input,textarea,select'))) {
                 const search = $('#global-search');
@@ -613,18 +684,15 @@ const App = {
             let res = await fetch('/api/system', { credentials: 'same-origin' });
             if (!res.ok) return;
             const info = await res.json();
+            if (info.version) {
+                document.documentElement.setAttribute('data-ark-release', info.version);
+            }
             const versionEl = $('#app-version');
             if (versionEl && info.version) {
                 versionEl.textContent = info.server_mode
                     ? `v${info.version} · Server`
                     : `v${info.version}`;
             }
-            if (info.server_mode) {
-                // Serving the LAN: the deployment announces itself.
-                document.querySelectorAll('.sidebar-edition, .splash-subtitle')
-                    .forEach(el => { el.textContent = 'Server Edition'; });
-            }
-
             // Multi-user: always-visible identity chip in the topbar.
             const auth = await fetch('/api/auth/status', { credentials: 'same-origin' });
             if (auth.ok) {

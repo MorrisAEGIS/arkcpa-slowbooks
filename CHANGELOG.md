@@ -7,6 +7,27 @@ on what the software does, not on what sprint shipped what.
 
 ## [Unreleased]
 
+### v2.9.5 — Ark CPA across the complete operator surface
+
+**The accounting workspace is now Ark CPA from sign-in through generated
+documents.** The authenticated shell, every accounting route, public payment
+and employee portals, emails, PDFs, PWA metadata, API title, errors, exports,
+and first-run setup now use the exact `Ark CPA` product name. The required
+Slowbooks source acknowledgment remains in About/legal, while compatible
+technical identifiers and existing data formats remain unchanged.
+
+**ARK-native visual and accessibility contracts now apply throughout.** The
+interface is dark-first with a complete light theme, a persistent theme
+choice, a responsive off-canvas accounting navigation, 44-pixel mobile
+targets, contained tables, and the canonical Living Ark sign-in motion. A
+reduced-motion preference stops that motion completely. Browser acceptance
+operates real setup, themes, About, all visible routes, and desktop/mobile
+navigation against the packaged release image.
+
+**Empty new workspaces no longer make an invalid Check Register request.** An
+empty account selector now has an empty disabled value, so Ark CPA does not
+send the words “No bank accounts” to an integer API parameter.
+
 ### v2.9.4 — The company logo on every document; exception text stays in the log
 
 **Every PDF now carries the company logo when one is set.** The logo

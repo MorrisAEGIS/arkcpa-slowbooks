@@ -1,6 +1,6 @@
 # Release / Production Deployment Checklist
 
-Before exposing SlowBooks Pro 2026 to anyone other than localhost, walk
+Before exposing Ark CPA to anyone other than localhost, walk
 this list. Everything here is enforced or documented somewhere in the
 codebase — this file is the index, not the source of truth.
 
@@ -157,13 +157,13 @@ the numbers against the official IRS instructions before filing. The
 reason.
 
 For SUI filings the scaffolding exists (`app/services/tax_forms/state_sui.py`)
-but per-state form rendering is not implemented. Don't rely on SlowBooks
+but per-state form rendering is not implemented. Don't rely on Ark CPA
 for state unemployment filings without confirming the state accepts the
 output format.
 
 ## 9. HIPAA / compliance context
 
-SlowBooks is not a HIPAA-covered system by default. See
+Ark CPA is not a HIPAA-covered system by default. See
 [hipaa-compliance.md](hipaa-compliance.md) for the Security Rule mapping,
 the eight remaining gaps, and recommendations for compliance-conscious
 deployments.

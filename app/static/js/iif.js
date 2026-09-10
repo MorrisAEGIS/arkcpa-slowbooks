@@ -25,7 +25,7 @@ const IIFPage = {
                 <div class="iif-section">
                     <h3>&#9660; Export to IIF</h3>
                     <p style="font-size:11px; color:var(--text-secondary); margin-bottom:12px;">
-                        Download Slowbooks data as .iif files for import into QuickBooks 2003 Pro
+                        Download Ark CPA data as .iif files for import into QuickBooks 2003 Pro
                         via File &gt; Utilities &gt; Import &gt; IIF Files.
                     </p>
 
@@ -169,7 +169,7 @@ const IIFPage = {
     // ==== Export Functions ====
 
     exportAll() {
-        IIFPage._download('/api/iif/export/all', 'slowbooks_export.iif');
+        IIFPage._download('/api/iif/export/all', 'ark-cpa-export.iif');
     },
 
     exportSection(section) {

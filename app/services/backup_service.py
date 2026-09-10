@@ -101,7 +101,7 @@ def _create_sqlite_backup(db: Session, notes: str, backup_type: str) -> dict:
         }
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"slowbooks_{timestamp}.db"
+    filename = f"ark_cpa_{timestamp}.db"
     filepath = BACKUP_DIR / filename
 
     try:
@@ -167,7 +167,7 @@ def create_backup(db: Session, notes: str = None, backup_type: str = "manual") -
 
     params = _parse_db_url(DATABASE_URL)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"slowbooks_{timestamp}.sql"
+    filename = f"ark_cpa_{timestamp}.sql"
     filepath = BACKUP_DIR / filename
 
     env = {"PGPASSWORD": params["password"]}
@@ -280,6 +280,8 @@ def list_backup_files() -> list[dict]:
     """List all backup files in the backup directory."""
     files = []
     candidates = [
+        *BACKUP_DIR.glob("ark_cpa_*.sql"),
+        *BACKUP_DIR.glob("ark_cpa_*.db"),
         *BACKUP_DIR.glob("slowbooks_*.sql"),
         *BACKUP_DIR.glob("slowbooks_*.db"),
     ]

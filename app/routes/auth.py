@@ -263,7 +263,7 @@ async def authentik_login(request: Request):
 
 @router.get("/authentik/callback")
 async def authentik_callback(request: Request, db: Session = Depends(get_db)):
-    """Verify the Authentik callback, then issue a normal SlowBooks session."""
+    """Verify the Authentik callback, then issue an Ark CPA session."""
     secure = _is_secure_request(request)
     if request.query_params.get("error"):
         return _oidc_error(secure, "denied")

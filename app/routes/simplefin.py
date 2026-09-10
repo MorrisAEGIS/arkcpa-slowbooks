@@ -75,7 +75,7 @@ def claim(payload: ClaimRequest, db: Session = Depends(get_db)):
 
 @router.post("/map")
 def save_mapping(payload: MapRequest, db: Session = Depends(get_db)):
-    """Store which bridge account feeds which SlowBooks bank account."""
+    """Store which bridge account feeds which Ark CPA bank account."""
     _connected(db)
     clean: dict[str, int] = {}
     for sf_id, bank_account_id in payload.mapping.items():

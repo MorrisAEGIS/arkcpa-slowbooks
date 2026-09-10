@@ -266,7 +266,7 @@ async def lifespan(app: FastAPI):
 # (fast, and the reason ORJSONResponse was deprecated in 0.136). We let it use
 # its default response class rather than pinning the now-deprecated ORJSON one.
 app = FastAPI(
-    title="Slowbooks Pro 2026",
+    title="Ark CPA API",
     version=__version__,
     lifespan=lifespan,
     description=(

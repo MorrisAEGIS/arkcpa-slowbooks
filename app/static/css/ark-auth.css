@@ -9,32 +9,18 @@
     min-height: 100dvh;
     overflow-y: auto;
     color: var(--ark-ink);
-    background-color: var(--ark-canvas);
+    background-color: oklch(13.5% 0.012 135);
     background-image:
-        linear-gradient(rgba(228, 189, 103, 0.028) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(228, 189, 103, 0.028) 1px, transparent 1px),
-        radial-gradient(circle at 50% -20%, oklch(28% 0.035 92), transparent 42%);
-    background-size: 48px 48px, 48px 48px, auto;
+        radial-gradient(circle at 50% -18%, oklch(24% 0.025 92), transparent 43%),
+        linear-gradient(180deg, oklch(14.5% 0.014 130), oklch(12.5% 0.011 140));
     font-family: var(--ark-font);
     font-size: 1rem;
     line-height: 1.5;
 }
 
-.ark-auth-page::before {
-    content: "";
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: max(24px, calc(50% - 260px));
-    width: 1px;
-    pointer-events: none;
-    background: linear-gradient(transparent 7%, var(--ark-gold-muted) 28% 72%, transparent 93%);
-    opacity: 0.24;
-}
-
 .ark-auth-stage {
     display: grid;
-    width: min(100%, 480px);
+    width: min(100%, 440px);
     min-height: 100dvh;
     margin: 0 auto;
     padding:
@@ -49,25 +35,25 @@
     width: min(100%, 620px);
 }
 
-.ark-auth-page--setup .ark-mark {
-    --ark-mark-size: 58px;
-}
-
 .ark-auth-shell {
     width: 100%;
     animation: ark-auth-enter 500ms var(--ark-ease-out) both;
+}
+
+.ark-auth-page .ark-mark {
+    --ark-mark-size: 128px;
 }
 
 .ark-auth-identity {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: 28px;
     text-align: center;
 }
 
 .ark-auth-eyebrow {
-    margin: 18px 0 6px;
+    margin: 20px 0 7px;
     color: var(--ark-gold);
     font-size: 0.6875rem;
     font-weight: 600;
@@ -78,7 +64,7 @@
 .ark-auth-title {
     margin: 0;
     color: var(--ark-ink);
-    font-size: 1.75rem;
+    font-size: 1.875rem;
     font-weight: 600;
     letter-spacing: -0.025em;
     line-height: 1.15;
@@ -93,18 +79,18 @@
 .ark-auth-panel {
     position: relative;
     padding: 26px;
-    border: 1px solid var(--ark-line);
-    border-radius: 8px;
-    background: var(--ark-surface);
-    box-shadow: 0 28px 70px rgba(4, 7, 4, 0.34);
+    border: 1px solid oklch(31% 0.018 112);
+    border-radius: 7px;
+    background: oklch(17.5% 0.013 128);
+    box-shadow: 0 28px 70px rgba(2, 5, 3, 0.3);
 }
 
 .ark-auth-panel::before {
     content: "";
     position: absolute;
     top: -1px;
-    right: 34px;
-    left: 34px;
+    right: 46px;
+    left: 46px;
     height: 1px;
     background: linear-gradient(90deg, transparent, var(--ark-gold), transparent);
 }
@@ -123,7 +109,7 @@
     justify-content: center;
     padding: 10px 16px;
     border: 1px solid var(--ark-action);
-    border-radius: 5px;
+    border-radius: 4px;
     color: oklch(18% 0.03 150);
     background: var(--ark-action);
     font: 600 0.875rem/1 var(--ark-font);
@@ -149,7 +135,7 @@
 .ark-auth-button--secondary {
     border-color: var(--ark-line);
     color: var(--ark-ink);
-    background: var(--ark-surface-raised);
+    background: transparent;
 }
 
 .ark-auth-button--secondary:hover {
@@ -233,7 +219,7 @@
     min-height: 44px;
     padding: 10px 12px;
     border: 1px solid var(--ark-line);
-    border-radius: 5px;
+    border-radius: 4px;
     color: var(--ark-ink);
     background: oklch(16% 0.012 120);
     font: 400 1rem/1.25 var(--ark-font);
@@ -297,7 +283,7 @@
     margin: 16px 0 0;
     color: var(--ark-ink-faint);
     font-size: 0.6875rem;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
     text-align: center;
 }
 
@@ -307,14 +293,6 @@
 }
 
 @media (max-width: 560px) {
-    .ark-auth-page {
-        background-size: 36px 36px, 36px 36px, auto;
-    }
-
-    .ark-auth-page::before {
-        display: none;
-    }
-
     .ark-auth-stage {
         width: 100%;
         padding-right: max(16px, env(safe-area-inset-right));
@@ -325,8 +303,8 @@
         padding: 22px 18px;
     }
 
-    .ark-mark {
-        --ark-mark-size: 64px;
+    .ark-auth-page .ark-mark {
+        --ark-mark-size: 108px;
     }
 
     .ark-auth-title {

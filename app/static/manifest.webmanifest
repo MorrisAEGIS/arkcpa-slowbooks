@@ -1,7 +1,7 @@
 {
   "name": "Ark CPA",
   "short_name": "Ark CPA",
-  "description": "MAGA Energy accounting powered by SlowBooks Pro 2026.",
+  "description": "Private MAGA Energy accounting.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

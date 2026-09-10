@@ -46,7 +46,7 @@ const BankingPage = {
                     Pull transactions straight from your bank — no file exports.
                     Sign up at <a href="https://bridge.simplefin.org" target="_blank" rel="noopener">bridge.simplefin.org</a>,
                     connect your bank there, then paste your <strong>setup token</strong> below.
-                    Your credential stays on this machine; SlowBooks has no middleman server.
+                    Your credential stays in this private workspace; Ark CPA has no middleman server.
                 </p>
                 <form onsubmit="BankingPage.connectSimpleFIN(event)">
                     <div class="form-group">
@@ -73,7 +73,7 @@ const BankingPage = {
                 </tr>`).join('');
             body = `
                 <p style="font-size:12px; margin-bottom:8px;">
-                    Connected. Choose which SlowBooks bank account each feed lands in,
+                    Connected. Choose which Ark CPA bank account each feed lands in,
                     then sync — duplicates are skipped automatically and bank rules apply.
                     ${feed.last_sync ? `Last sync: ${escapeHtml(feed.last_sync.replace('T', ' '))}` : 'Not synced yet.'}
                 </p>

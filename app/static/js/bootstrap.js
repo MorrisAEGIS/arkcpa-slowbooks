@@ -16,9 +16,7 @@
     // --- Splash dismiss ----------------------------------------------------
     const dismiss = document.getElementById('splash-dismiss');
     if (dismiss) {
-        dismiss.addEventListener('click', () => {
-            document.getElementById('splash').classList.add('hidden');
-        });
+        dismiss.addEventListener('click', () => window.App && App.hideAbout && App.hideAbout());
     }
 
     // --- What's new on the splash ------------------------------------------
@@ -62,12 +60,12 @@
     const closeBtn = document.getElementById('modal-close-btn');
     if (closeBtn) closeBtn.addEventListener('click', () => typeof closeModal === 'function' && closeModal());
 
-    // Sign out — POSTs to /api/auth/logout, then reloads to splash.
+    // Sign out — POSTs to /api/auth/logout, then returns to Ark CPA sign-in.
     // Auth is session-cookie based; the server clears the cookie and the
     // reload bounces the user back to the login screen.
     const logout = document.getElementById('logout-btn');
     if (logout) logout.addEventListener('click', async () => {
-        if (!confirm('Sign out of Slowbooks?')) return;
+        if (!confirm('Sign out of Ark CPA?')) return;
         try {
             await API.post('/auth/logout', {});
         } catch (_err) {
