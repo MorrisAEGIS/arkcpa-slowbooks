@@ -1,5 +1,5 @@
 [Unit]
-Description=ArkCPA SlowBooks Pro 2026
+Description=Ark CPA shared accounting workspace
 Requires=docker.service
 After=docker.service network-online.target
 Wants=network-online.target
