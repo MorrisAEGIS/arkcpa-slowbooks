@@ -69,7 +69,7 @@ def test_auth_markup_uses_ark_classes_without_inline_presentation():
     assert "MAGA Energy accounting" in source
     assert "Continue with Authentik" in source
     assert "Local recovery access" in source
-    assert "MAGA Energy · Private accounting workspace" in source
+    assert "MAGA Energy · Shared accounting workspace" in source
     assert "Powered by SlowBooks" not in source
     assert "Set up Ark CPA" in source
     assert 'window.location.pathname !== "/login"' in source

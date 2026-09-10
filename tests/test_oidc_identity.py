@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.models.users import ROLE_ADMIN, ROLE_READONLY, User
+from app.models.users import ROLE_ADMIN, ROLE_BOOKKEEPER, ROLE_READONLY, User
 from app.services.oidc_identity import resolve_oidc_principal
 
 ISSUER = "https://auth.example/application/o/arkcpa/"
@@ -21,7 +21,7 @@ def _env(email="jay@example.com"):
     return {"AUTHENTIK_OIDC_BOOTSTRAP_EMAIL": email}
 
 
-def test_empty_private_workspace_creates_oidc_only_admin(db_session):
+def test_empty_workspace_creates_oidc_only_admin(db_session):
     user = resolve_oidc_principal(db_session, _claims(), ISSUER, _env())
     db_session.commit()
 
@@ -79,6 +79,78 @@ def test_unprovisioned_email_is_rejected(db_session):
             _env("jay@example.com"),
         )
     assert db_session.query(User).count() == 0
+
+
+def test_explicit_email_invitation_binds_second_user_once(db_session):
+    invited = User(
+        username="maesa",
+        display_name="Maesa",
+        email="Maesa@Example.com",
+        password_hash="!oidc-only",
+        role=ROLE_BOOKKEEPER,
+        is_active=True,
+    )
+    db_session.add(invited)
+    db_session.commit()
+
+    bound = resolve_oidc_principal(
+        db_session,
+        _claims(subject="subject-maesa", email="maesa@example.com", username="maesa"),
+        ISSUER,
+        _env("jay@example.com"),
+    )
+    db_session.commit()
+
+    assert bound.id == invited.id
+    assert bound.role == ROLE_BOOKKEEPER
+    assert bound.oidc_issuer == ISSUER
+    assert bound.oidc_subject == "subject-maesa"
+    assert bound.email == "maesa@example.com"
+
+
+def test_inactive_invitation_is_rejected(db_session):
+    db_session.add(
+        User(
+            username="maesa",
+            display_name="Maesa",
+            email="maesa@example.com",
+            password_hash="!oidc-only",
+            role=ROLE_BOOKKEEPER,
+            is_active=False,
+        )
+    )
+    db_session.commit()
+
+    with pytest.raises(PermissionError, match="inactive"):
+        resolve_oidc_principal(
+            db_session,
+            _claims(subject="subject-maesa", email="maesa@example.com"),
+            ISSUER,
+            _env("jay@example.com"),
+        )
+
+
+def test_duplicate_email_invitations_fail_closed(db_session):
+    for username in ("maesa", "maesa-2"):
+        db_session.add(
+            User(
+                username=username,
+                display_name="Maesa",
+                email="maesa@example.com",
+                password_hash="!oidc-only",
+                role=ROLE_BOOKKEEPER,
+                is_active=True,
+            )
+        )
+    db_session.commit()
+
+    with pytest.raises(PermissionError, match="ambiguous"):
+        resolve_oidc_principal(
+            db_session,
+            _claims(subject="subject-maesa", email="maesa@example.com"),
+            ISSUER,
+            _env("jay@example.com"),
+        )
 
 
 def test_subject_change_for_same_email_is_rejected(db_session):

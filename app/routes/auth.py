@@ -227,9 +227,9 @@ def auth_status(request: Request, db: Session = Depends(get_db)):
             "email": request.session.get("oidc_email") or "",
         }
         out["workspace"] = {
-            "id": request.session.get("workspace_id") or "private",
-            "label": request.session.get("workspace_label") or "Private books",
-            "isolation": "dedicated-stack",
+            "id": request.session.get("workspace_id") or "shared",
+            "label": request.session.get("workspace_label") or "Shared books",
+            "isolation": "single-workspace-multiple-users",
         }
     return out
 
@@ -306,10 +306,10 @@ async def authentik_callback(request: Request, db: Session = Depends(get_db)):
         request.session["oidc_sub"] = str(claims["sub"])
         request.session["oidc_email"] = str(claims["email"]).strip().lower()
         request.session["workspace_id"] = (
-            os.environ.get("ARKCPA_WORKSPACE_ID") or "private"
+            os.environ.get("ARKCPA_WORKSPACE_ID") or "shared"
         ).strip()
         request.session["workspace_label"] = (
-            os.environ.get("ARKCPA_WORKSPACE_LABEL") or "Private books"
+            os.environ.get("ARKCPA_WORKSPACE_LABEL") or "Shared books"
         ).strip()
 
         response = RedirectResponse(_app_redirect(return_to), status_code=302)

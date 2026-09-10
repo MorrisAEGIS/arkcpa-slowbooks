@@ -102,7 +102,7 @@
         return (
             '<span class="ark-mark" role="img" aria-label="Noah\'s Ark, the ARK mark">' +
             '<span class="ark-mark__aura" aria-hidden="true"></span>' +
-            '<img class="ark-mark__image" src="/static/brand/ark-living-mark.png?v=2.9.5" alt="">' +
+            '<img class="ark-mark__image" src="/static/brand/ark-living-mark.png?v=2.9.6" alt="">' +
             '<span class="ark-mark__water" aria-hidden="true"></span>' +
             "</span>"
         );
@@ -121,10 +121,10 @@
             '<p class="ark-auth-eyebrow">MAGA Energy accounting</p>' +
             '<h1 class="ark-auth-title" id="auth-title">Ark CPA</h1>' +
             '<p class="ark-auth-subtitle">' +
-            (mode === "setup" ? "Prepare your private accounting workspace" : "Sign in to continue") +
+            (mode === "setup" ? "Prepare your shared company books" : "Sign in to continue") +
             "</p></header>" +
             innerHTML +
-            '<p class="ark-auth-provenance">MAGA Energy · Private accounting workspace</p>' +
+            '<p class="ark-auth-provenance">MAGA Energy · Shared accounting workspace</p>' +
             "</section></main>";
         return root;
     }
@@ -225,7 +225,7 @@
         return (
             '<div class="ark-auth-panel"><form id="auth-form" aria-label="Ark CPA sign in">' +
             '<p class="ark-auth-intro">' +
-            (authentikEnabled ? "Use your ARK identity to access your private accounting workspace." :
+            (authentikEnabled ? "Use your ARK identity to access the shared company books." :
                 (multiUser ? "Sign in to continue." : "Enter your password to continue.")) +
             "</p>" + authentikButton + divider + localAccess +
             '<p class="ark-auth-error" id="auth-error" role="alert" aria-live="assertive">' +

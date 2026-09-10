@@ -94,6 +94,7 @@ def test_create_list_update_user(client):
     assert r.status_code == 201
     body = r.json()
     assert body["username"] == "renita"  # normalized lowercase
+    assert body["auth_source"] == "local"
     assert "password" not in str(body) or "password_hash" not in body
 
     users = client.get("/api/users").json()
@@ -110,6 +111,8 @@ def test_user_validation(client):
         ({"username": "has space", "password": "long-enough-pw", "role": "admin"}, 400),
         ({"username": "goodname", "password": "short", "role": "admin"}, 400),
         ({"username": "goodname", "password": "long-enough-pw", "role": "boss"}, 400),
+        ({"username": "goodname", "role": "readonly"}, 400),
+        ({"username": "goodname", "email": "not-an-email", "role": "readonly"}, 422),
     ]
     for payload, expected in bad:
         r = client.post("/api/users", json=payload)
@@ -124,6 +127,35 @@ def test_user_validation(client):
         json={"username": "DUPE", "password": "long-enough-pw", "role": "readonly"},
     )
     assert r.status_code == 409
+
+
+def test_create_authentik_invitation_without_local_password(client, db_session):
+    r = client.post(
+        "/api/users",
+        json={
+            "username": "Maesa",
+            "display_name": "Maesa",
+            "email": "Maesa@MagaEnergy.ai",
+            "role": "bookkeeper",
+        },
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["username"] == "maesa"
+    assert body["email"] == "maesa@magaenergy.ai"
+    assert body["auth_source"] == "invited"
+    user = db_session.query(User).filter(User.username == "maesa").one()
+    assert user.password_hash == "!oidc-only"
+
+    duplicate = client.post(
+        "/api/users",
+        json={
+            "username": "maesa-two",
+            "email": "MAESA@MAGAENERGY.AI",
+            "role": "readonly",
+        },
+    )
+    assert duplicate.status_code == 409
 
 
 def test_last_admin_protected(client, db_session):

@@ -45,13 +45,14 @@ function assert(condition, message) {
   assert(await page.getByRole('heading', { level: 1, name: 'Ark CPA' }).isVisible(), 'Ark CPA login heading is missing');
   const authOverlay = page.locator('#auth-overlay');
   assert(await authOverlay.getByText('MAGA Energy accounting', { exact: true }).isVisible(), 'MAGA Energy accounting label is missing');
-  assert(await authOverlay.getByText('MAGA Energy · Private accounting workspace', { exact: true }).isVisible(), 'Private workspace provenance is missing');
+  assert(await authOverlay.getByText('MAGA Energy · Shared accounting workspace', { exact: true }).isVisible(), 'Shared workspace provenance is missing');
   const mark = authOverlay.locator('.ark-mark');
   const markBox = await mark.boundingBox();
   assert(markBox && Math.round(markBox.width) === 128, `Desktop Living Ark mark is ${markBox?.width}px, expected 128px`);
-  const motionBefore = await mark.evaluate(el => getComputedStyle(el).transform);
+  const markImage = mark.locator('.ark-mark__image');
+  const motionBefore = await markImage.evaluate(el => getComputedStyle(el).filter);
   await page.waitForTimeout(350);
-  const motionAfter = await mark.evaluate(el => getComputedStyle(el).transform);
+  const motionAfter = await markImage.evaluate(el => getComputedStyle(el).filter);
   assert(motionBefore !== motionAfter, 'Living Ark mark did not change animation phase');
   await page.screenshot({ path: path.join(artifactDir, 'auth-desktop.png'), fullPage: true });
   actions.push('Proved exact auth copy, 128px Living Ark mark, and changing motion phase');
@@ -72,8 +73,8 @@ function assert(condition, message) {
 
   assert(await page.locator('.topbar-brand').getByText('Ark CPA', { exact: true }).isVisible(), 'Topbar Ark CPA lockup is missing');
   assert(await page.locator('#sidebar').getByRole('heading', { name: 'Ark CPA' }).isVisible(), 'Sidebar Ark CPA lockup is missing');
-  assert(await page.locator('#ark-workspace-chip').isVisible(), 'Private workspace identity chip is missing');
-  assert(await page.locator('html').getAttribute('data-ark-release') === '2.9.5', 'Rendered release marker is not 2.9.5');
+  assert(await page.locator('#ark-workspace-chip').isVisible(), 'Shared workspace identity chip is missing');
+  assert(await page.locator('html').getAttribute('data-ark-release') === '2.9.6', 'Rendered release marker is not 2.9.6');
   assert(await page.locator('html').getAttribute('data-theme') === 'dark', 'Ark CPA did not default to dark theme');
 
   await page.getByRole('button', { name: 'Use light theme' }).click();
@@ -89,6 +90,31 @@ function assert(condition, message) {
   await page.getByRole('button', { name: 'Close About' }).click();
   assert(!(await page.getByRole('dialog', { name: 'Ark CPA' }).isVisible()), 'About dialog did not close');
   actions.push('Opened and closed About and verified license attribution is confined there');
+
+  await page.evaluate(() => { window.location.hash = '#/settings'; });
+  await page.waitForSelector('#settings-users:not([style*="display:none"])');
+  await page.locator('#user-new-username').fill('maesa');
+  await page.locator('#user-new-display').fill('Maesa');
+  await page.locator('#user-new-email').fill('maesa@magaenergy.ai');
+  await page.locator('#user-new-role').selectOption('bookkeeper');
+  await Promise.all([
+    page.waitForResponse(response => response.url().includes('/api/users') && response.request().method() === 'POST' && response.ok()),
+    page.getByRole('button', { name: 'Invite user' }).click(),
+  ]);
+  await page.getByText('maesa@magaenergy.ai', { exact: true }).waitFor();
+  assert(await page.getByText('Invite pending', { exact: true }).isVisible(), 'Authentik invitation state is missing');
+  const maesaRow = page.locator('#users-list tr', { hasText: 'maesa@magaenergy.ai' });
+  assert(await maesaRow.locator('select').inputValue() === 'bookkeeper', 'Bookkeeper role was not retained');
+  const usersSection = page.locator('#settings-users');
+  await usersSection.screenshot({ path: path.join(artifactDir, 'users-access-desktop.png') });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(180);
+  const usersMobileOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  assert(usersMobileOverflow <= 1, `Mobile Users & access viewport overflows by ${usersMobileOverflow}px`);
+  await usersSection.screenshot({ path: path.join(artifactDir, 'users-access-mobile.png') });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.waitForTimeout(180);
+  actions.push('Invited a second Authentik user and proved its pending bookkeeper state at desktop and mobile widths');
 
   const routeHrefs = await page.locator('#sidebar .nav-link').evaluateAll(links =>
     [...new Set(links.filter(link => !link.closest('[hidden]')).map(link => link.getAttribute('href')).filter(Boolean))]
@@ -177,7 +203,7 @@ function assert(condition, message) {
     browserEngine: 'chromium',
     actions,
     assertions: {
-      release: '2.9.5',
+      release: '2.9.6',
       routeCount: routeResults.length + nonprofitRouteResults.length,
       routeResults,
       nonprofitRouteResults,
@@ -186,6 +212,7 @@ function assert(condition, message) {
       authDesktopMarkPx: Math.round(markBox.width),
       authMobileMarkPx: Math.round(reducedBox.width),
       reducedAnimation,
+      usersMobileOverflow,
     },
     consoleErrors,
     pageErrors,
@@ -193,6 +220,8 @@ function assert(condition, message) {
     badResponses,
     screenshots: [
       'auth-desktop.png',
+      'users-access-desktop.png',
+      'users-access-mobile.png',
       'app-desktop-dark.png',
       'app-mobile-dark.png',
       'auth-mobile-reduced-motion.png',

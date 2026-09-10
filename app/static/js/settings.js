@@ -380,12 +380,11 @@ const SettingsPage = {
                 </div>
 
                 <div class="settings-section" id="settings-users" style="display:none;">
-                    <h3>Users &mdash; Server Edition</h3>
+                    <h3>Users &amp; access</h3>
                     <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
-                        Add a second user and this deployment becomes
-                        <strong>Server Edition</strong>: everyone signs in with a
-                        username, every change is attributed in the audit log, and
-                        roles limit what each person can do.
+                        Invite each person by their verified Authentik email. Their
+                        identity links on first sign-in, every change is attributed,
+                        and their role limits what they can see and change.
                     </p>
                     <div id="users-list" style="margin-bottom:12px;"></div>
                     <div class="form-grid" style="align-items:end;">
@@ -393,8 +392,10 @@ const SettingsPage = {
                             <input id="user-new-username" autocomplete="off"></div>
                         <div class="form-group"><label>Display name</label>
                             <input id="user-new-display" autocomplete="off"></div>
-                        <div class="form-group"><label>Password</label>
-                            <input id="user-new-password" type="password" autocomplete="new-password"></div>
+                        <div class="form-group"><label>Authentik email</label>
+                            <input id="user-new-email" type="email" autocomplete="off" placeholder="person@magaenergy.ai"></div>
+                        <div class="form-group"><label>Local recovery password <span style="color:var(--text-muted);">(optional)</span></label>
+                            <input id="user-new-password" type="password" autocomplete="new-password" placeholder="Loopback access only"></div>
                         <div class="form-group"><label>Role</label>
                             <select id="user-new-role">
                                 <option value="bookkeeper">Bookkeeper — daily books, no admin</option>
@@ -402,7 +403,7 @@ const SettingsPage = {
                                 <option value="admin">Admin — everything</option>
                             </select></div>
                     </div>
-                    <button type="button" class="btn btn-primary" onclick="SettingsPage.createUser()">Add User</button>
+                    <button type="button" class="btn btn-primary" onclick="SettingsPage.createUser()">Invite user</button>
                 </div>
 
                 <div class="settings-section" id="settings-api-tokens" style="display:none;">
@@ -440,7 +441,7 @@ const SettingsPage = {
     },
 
     // ------------------------------------------------------------------
-    // Users (Server Edition) — section is visible to admins only; the
+    // Users and access — section is visible to admins only; the
     // backend enforces the same rule, this just avoids a useless 403.
     // ------------------------------------------------------------------
     async loadUsers() {
@@ -451,9 +452,15 @@ const SettingsPage = {
             if (!status.user || status.user.role !== 'admin') return;
             const users = await API.get('/users');
             section.style.display = '';
+            const authLabels = {
+                authentik: 'Authentik linked',
+                invited: 'Invite pending',
+                local: 'Local recovery',
+            };
             const rows = users.map(u => `<tr>
-                <td>${escapeHtml(u.username)}</td>
-                <td>${escapeHtml(u.display_name)}</td>
+                <td><strong>${escapeHtml(u.display_name || u.username)}</strong><br><span style="font-size:10px; color:var(--text-muted);">@${escapeHtml(u.username)}</span></td>
+                <td>${u.email ? escapeHtml(u.email) : '—'}</td>
+                <td>${escapeHtml(authLabels[u.auth_source] || u.auth_source)}</td>
                 <td>
                     <select onchange="SettingsPage.updateUser(${u.id}, {role: this.value})">
                         ${['admin', 'bookkeeper', 'readonly'].map(r =>
@@ -464,11 +471,13 @@ const SettingsPage = {
                 <td>${u.is_active
                     ? `<button type="button" class="btn btn-sm btn-secondary" onclick="SettingsPage.updateUser(${u.id}, {is_active: false})">Deactivate</button>`
                     : `<button type="button" class="btn btn-sm btn-secondary" onclick="SettingsPage.updateUser(${u.id}, {is_active: true})">Reactivate</button>`}
-                    <button type="button" class="btn btn-sm btn-secondary" onclick="SettingsPage.resetUserPassword(${u.id}, '${escapeHtml(u.username)}')">Reset password</button>
+                    ${u.auth_source === 'local'
+                        ? `<button type="button" class="btn btn-sm btn-secondary" onclick="SettingsPage.resetUserPassword(${u.id}, '${escapeHtml(u.username)}')">Reset password</button>`
+                        : ''}
                 </td>
             </tr>`).join('');
             $('#users-list').innerHTML = `<div class="table-container"><table>
-                <thead><tr><th scope="col">Username</th><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Last login</th><th scope="col"></th></tr></thead>
+                <thead><tr><th scope="col">Person</th><th scope="col">Email</th><th scope="col">Sign-in</th><th scope="col">Role</th><th scope="col">Last login</th><th scope="col"></th></tr></thead>
                 <tbody>${rows}</tbody></table></div>`;
         } catch (e) { /* non-admin or pre-upgrade server: section stays hidden */ }
     },
@@ -532,12 +541,14 @@ const SettingsPage = {
             await API.post('/users', {
                 username: $('#user-new-username').value.trim(),
                 display_name: $('#user-new-display').value.trim(),
+                email: $('#user-new-email').value.trim(),
                 password: $('#user-new-password').value,
                 role: $('#user-new-role').value,
             });
-            toast('User added — this deployment is now Server Edition');
+            toast('Access invitation saved — identity links on first Authentik sign-in');
             $('#user-new-username').value = '';
             $('#user-new-display').value = '';
+            $('#user-new-email').value = '';
             $('#user-new-password').value = '';
             SettingsPage.loadUsers();
         } catch (err) { toast(err.message, 'error'); }

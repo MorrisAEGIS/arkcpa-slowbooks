@@ -7,6 +7,21 @@ on what the software does, not on what sprint shipped what.
 
 ## [Unreleased]
 
+### v2.9.6 — One Ark CPA, with a real identity for every user
+
+**Ark CPA now supports explicit Authentik invitations in one shared set of
+books.** An admin records the person's verified email and least-privilege role;
+the first successful Authentik login binds that invitation to its immutable
+issuer and subject. Bound identities cannot be transferred by changing an
+email address, duplicate invitations fail closed, and inactive invitations
+stay blocked. Local passwords remain optional loopback recovery credentials.
+
+**Users & access now explains the workflow users actually follow.** The admin
+table distinguishes pending invitations, linked Authentik identities, and local
+recovery users. The top bar names the signed-in person and shared company books,
+while the obsolete per-person deployment instructions and Maesa tunnel unit are
+retired.
+
 ### v2.9.5 — Ark CPA across the complete operator surface
 
 **The accounting workspace is now Ark CPA from sign-in through generated

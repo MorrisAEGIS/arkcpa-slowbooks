@@ -1,10 +1,10 @@
-"""Fail-closed binding between Authentik identities and ArkCPA principals.
+"""Fail-closed binding between Authentik identities and Ark CPA users.
 
-ArkCPA private workspaces are deployed as separate stacks. Each stack has
-its own Authentik application/group, database, file volume, backup volume,
-and encryption secrets. Inside a stack this module additionally pins the
-approved operator to Authentik's immutable ``(issuer, sub)`` identity so a
-later email or display-name change cannot transfer the account.
+Ark CPA is one shared accounting workspace with one local principal per
+person. Administrators invite a person by verified email; that invitation is
+bound exactly once to Authentik's immutable ``(issuer, sub)`` identity. Later
+email or display-name changes refresh profile data without transferring the
+account to another Authentik subject.
 """
 
 from __future__ import annotations
@@ -14,12 +14,13 @@ import re
 import secrets
 from typing import Any, Mapping
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.users import ROLE_ADMIN, User
 
 _USERNAME_SAFE = re.compile(r"[^a-z0-9._-]+")
-_OIDC_ONLY_PASSWORD = "!oidc-only"
+OIDC_ONLY_PASSWORD = "!oidc-only"
 
 
 def _normalized_email(value: Any) -> str:
@@ -59,10 +60,10 @@ def resolve_oidc_principal(
 ) -> User:
     """Return the exact local principal for verified OIDC claims.
 
-    Existing bindings resolve only by ``(issuer, sub)``. The first binding
-    is allowed only when the verified email exactly matches the stack's
-    explicit ``AUTHENTIK_OIDC_BOOTSTRAP_EMAIL``. That one-time value is not
-    used for later logins and cannot become account recovery or transfer.
+    Existing bindings resolve only by ``(issuer, sub)``. An unbound, active
+    invitation may be claimed once when its email exactly matches the
+    verified OIDC email. The bootstrap email remains only for initial setup;
+    it is never used as account recovery or identity transfer.
     """
 
     subject = str(claims.get("sub") or "").strip()
@@ -87,19 +88,33 @@ def resolve_oidc_principal(
         user.display_name = _display_name(claims, user.username)
         return user
 
+    # Email can authorize only the first binding of an explicit invitation.
+    # Once any row carrying that email is bound, a different subject is an
+    # identity-change attempt and must fail closed.
+    email_matches = (
+        db.query(User)
+        .filter(func.lower(User.email) == email)
+        .order_by(User.id)
+        .all()
+    )
+    if any(candidate.oidc_subject or candidate.oidc_issuer for candidate in email_matches):
+        raise PermissionError("OIDC subject changed for a provisioned identity")
+    if len(email_matches) > 1:
+        raise PermissionError("OIDC invitation is ambiguous")
+    if email_matches:
+        user = email_matches[0]
+        if not user.is_active:
+            raise PermissionError("OIDC invitation is inactive")
+        user.oidc_issuer = normalized_issuer
+        user.oidc_subject = subject
+        user.email = email
+        user.display_name = _display_name(claims, user.username)
+        db.flush()
+        return user
+
     bootstrap_email = _normalized_email(env.get("AUTHENTIK_OIDC_BOOTSTRAP_EMAIL"))
     if not bootstrap_email or not secrets.compare_digest(email, bootstrap_email):
         raise PermissionError("OIDC identity is not provisioned for this workspace")
-
-    # Refuse an attempted subject change for an already-bound email. An
-    # operator must clear/rebind it through an explicit recovery procedure.
-    if (
-        db.query(User.id)
-        .filter(User.email == email, User.oidc_subject.is_not(None))
-        .first()
-        is not None
-    ):
-        raise PermissionError("OIDC subject changed for a provisioned identity")
 
     all_users = db.query(User).order_by(User.id).all()
     unbound_admins = [
@@ -116,7 +131,7 @@ def resolve_oidc_principal(
         user = User(
             username=_unique_username(db, preferred_username),
             display_name=_display_name(claims, preferred_username),
-            password_hash=_OIDC_ONLY_PASSWORD,
+            password_hash=OIDC_ONLY_PASSWORD,
             role=ROLE_ADMIN,
             is_active=True,
         )

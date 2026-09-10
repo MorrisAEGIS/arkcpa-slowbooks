@@ -141,8 +141,8 @@ def test_valid_callback_issues_normal_slowbooks_admin_session(
     unauthed_client, monkeypatch
 ):
     _enable_oidc(monkeypatch)
-    monkeypatch.setenv("ARKCPA_WORKSPACE_ID", "jay-private")
-    monkeypatch.setenv("ARKCPA_WORKSPACE_LABEL", "Jay's private books")
+    monkeypatch.setenv("ARKCPA_WORKSPACE_ID", "maga-energy")
+    monkeypatch.setenv("ARKCPA_WORKSPACE_LABEL", "MAGA Energy books")
     # Local break-glass setup materializes the admin that OIDC maps to.
     setup = unauthed_client.post(
         "/api/auth/setup",
@@ -204,7 +204,7 @@ def test_valid_callback_issues_normal_slowbooks_admin_session(
     assert status_response["user"]["email"] == "owner@example.com"
     assert status_response["user"]["role"] == "admin"
     assert status_response["workspace"] == {
-        "id": "jay-private",
-        "label": "Jay's private books",
-        "isolation": "dedicated-stack",
+        "id": "maga-energy",
+        "label": "MAGA Energy books",
+        "isolation": "single-workspace-multiple-users",
     }

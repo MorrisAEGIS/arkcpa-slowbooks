@@ -1,5 +1,5 @@
 # ============================================================================
-# User management (Server Edition) — admin-only via the RBAC middleware
+# User management — admin-only via the RBAC middleware
 # (/api/users is an admin write prefix; reads are role-gated in-route so
 # non-admins never enumerate accounts either).
 #
@@ -12,12 +12,14 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import Field
-from app.schemas.common import StrictModel
+from app.schemas.common import BlankableEmail, StrictModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.users import ROLE_ADMIN, VALID_ROLES, User
 from app.services.auth import MIN_PASSWORD_LEN, hash_password
+from app.services.oidc_identity import OIDC_ONLY_PASSWORD
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -36,7 +38,9 @@ def _user_out(u: User) -> dict:
         "display_name": u.display_name,
         "role": u.role,
         "email": u.email or "",
-        "auth_source": "authentik" if u.oidc_subject else "local",
+        "auth_source": (
+            "authentik" if u.oidc_subject else "invited" if u.email else "local"
+        ),
         "is_active": u.is_active,
         "created_at": u.created_at.isoformat() if u.created_at else None,
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
@@ -55,12 +59,14 @@ def _other_active_admin_exists(db: Session, user: User) -> bool:
 class UserCreate(StrictModel):
     username: str = Field(..., min_length=3, max_length=50)
     display_name: str = Field("", max_length=200)
-    password: str = Field(..., min_length=1, max_length=512)
+    email: BlankableEmail = None
+    password: Optional[str] = Field(None, max_length=512)
     role: str = Field(...)
 
 
 class UserUpdate(StrictModel):
     display_name: Optional[str] = Field(None, max_length=200)
+    email: BlankableEmail = None
     role: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = Field(None, max_length=512)
@@ -83,17 +89,27 @@ def create_user(payload: UserCreate, request: Request, db: Session = Depends(get
         )
     if payload.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail="Invalid role")
-    if len(payload.password) < MIN_PASSWORD_LEN:
+    email = (payload.email or "").strip().lower()
+    password = payload.password or ""
+    if not email and not password:
+        raise HTTPException(
+            status_code=400,
+            detail="Enter an Authentik email or a local recovery password",
+        )
+    if password and len(password) < MIN_PASSWORD_LEN:
         raise HTTPException(
             status_code=400,
             detail=f"Password must be at least {MIN_PASSWORD_LEN} characters",
         )
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(status_code=409, detail="Username already exists")
+    if email and db.query(User.id).filter(func.lower(User.email) == email).first():
+        raise HTTPException(status_code=409, detail="Email is already invited")
     user = User(
         username=username,
         display_name=payload.display_name.strip() or username.title(),
-        password_hash=hash_password(payload.password),
+        email=email or None,
+        password_hash=hash_password(password) if password else OIDC_ONLY_PASSWORD,
         role=payload.role,
         is_active=True,
     )
@@ -130,6 +146,29 @@ def update_user(
         user.role = payload.role
     if payload.display_name is not None:
         user.display_name = payload.display_name.strip()
+    if "email" in payload.model_fields_set:
+        email = (payload.email or "").strip().lower()
+        current_email = (user.email or "").strip().lower()
+        if user.oidc_subject and email != current_email:
+            raise HTTPException(
+                status_code=409,
+                detail="A bound Authentik email refreshes at the user's next login",
+            )
+        if not email and user.password_hash == OIDC_ONLY_PASSWORD:
+            raise HTTPException(
+                status_code=400,
+                detail="An Authentik-only user must keep an invitation email",
+            )
+        duplicate = (
+            db.query(User.id)
+            .filter(func.lower(User.email) == email, User.id != user.id)
+            .first()
+            if email
+            else None
+        )
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Email is already invited")
+        user.email = email or None
     if payload.is_active is not None:
         user.is_active = payload.is_active
     if payload.password:

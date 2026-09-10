@@ -1,4 +1,12 @@
 {
+  "2.9.6": {
+    "title": "One Ark CPA for the whole team",
+    "items": [
+      "Invite each person by verified Authentik email and assign an admin, bookkeeper or read-only role",
+      "Pending invitations bind once to an immutable Authentik identity on first sign-in",
+      "The shell always shows the signed-in person and the shared company books"
+    ]
+  },
   "2.9.5": {
     "title": "Ark CPA across every workspace",
     "items": [

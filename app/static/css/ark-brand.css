@@ -1305,6 +1305,14 @@ tbody tr:hover td,
         align-items: stretch;
     }
 
+    .form-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .form-group {
+        min-width: 0;
+    }
+
     .toolbar input,
     .toolbar select,
     .form-group input,

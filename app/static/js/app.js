@@ -593,17 +593,17 @@ const App = {
             : { authenticated: true };
         if (!authStatus.authenticated) return;
 
-        // Make the signed-in human and hard-isolated workspace visible in
-        // the shell. This is a security affordance, not decoration: an
-        // operator should always know whose books are open before writing.
+        // Make the signed-in human and shared accounting workspace visible
+        // in the shell. This is a security affordance: operators should
+        // always know which identity and books are active before writing.
         const workspaceChip = $('#ark-workspace-chip');
         const workspaceLabel = $('#ark-workspace-chip-label');
         if (workspaceChip && workspaceLabel && authStatus.workspace) {
             const user = authStatus.user || {};
             const person = user.display_name || user.username || 'Operator';
-            const books = authStatus.workspace.label || 'Private books';
+            const books = authStatus.workspace.label || 'Shared books';
             workspaceLabel.textContent = `${person} · ${books}`;
-            workspaceChip.title = 'Dedicated database and private file storage';
+            workspaceChip.title = 'Shared accounting workspace with per-user identity and role controls';
             workspaceChip.hidden = false;
         }
 

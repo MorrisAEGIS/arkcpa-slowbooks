@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Provision one hard-isolated ArkCPA workspace and its Authentik app.
+"""Provision the shared Ark CPA workspace and its Authentik access group.
 
 The command is idempotent. Existing application credentials and workspace
-secrets are retained; a new env file receives independently generated values.
-Secrets are written atomically at mode 0600 and are never printed.
+secrets are retained. Named Authentik users become members of the one Ark CPA
+application; Ark CPA then applies its own per-user role. Secrets are written
+atomically at mode 0600 and are never printed.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ MARKER = "ARKCPA_OIDC_CONFIG="
 _SAFE_SLUG = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 _SAFE_HOST = re.compile(r"^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$")
 _SAFE_DB = re.compile(r"^[a-zA-Z0-9_-]+$")
+_SAFE_USERNAME = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9._-]{1,99}$")
 
 SHELL = r"""
 import json, os, secrets
@@ -37,9 +39,15 @@ auth_flow = Flow.objects.filter(slug="ark-hermes-authentication-flow").first() o
 owner = User.objects.get(username=spec["owner_username"])
 if (owner.email or "").strip().lower() != spec["bootstrap_email"]:
     raise RuntimeError("Authentik owner email does not match the requested bootstrap email")
+usernames = list(dict.fromkeys([spec["owner_username"]] + spec["member_usernames"]))
+members = list(User.objects.filter(username__in=usernames))
+found = {user.username for user in members}
+missing = [username for username in usernames if username not in found]
+if missing:
+    raise RuntimeError("Authentik users not found: " + ", ".join(missing))
 
 group, _ = Group.objects.get_or_create(name=spec["group"])
-group.users.set([owner])
+group.users.set(members)
 
 provider = OAuth2Provider.objects.filter(name=spec["provider_name"]).first()
 created = provider is None
@@ -169,6 +177,9 @@ def _validate(args: argparse.Namespace) -> None:
         raise SystemExit("--publish-port is outside the valid TCP range")
     if "@" not in args.bootstrap_email:
         raise SystemExit("--bootstrap-email must be an email address")
+    usernames = [args.owner_username] + list(args.member_username)
+    if any(not _SAFE_USERNAME.fullmatch(username) for username in usernames):
+        raise SystemExit("Authentik usernames contain unsupported characters")
 
 
 def _workspace_env(args: argparse.Namespace, oidc: dict[str, object]) -> dict[str, str]:
@@ -226,10 +237,11 @@ def main() -> int:
     parser.add_argument("--hostname", default="arkcpa.magaenergy.ai")
     parser.add_argument("--alias", action="append", default=[])
     parser.add_argument("--owner-username", default="jay")
+    parser.add_argument("--member-username", action="append", default=[])
     parser.add_argument("--bootstrap-email", default="jay@magaenergy.ai")
     parser.add_argument("--group", default="ArkCPA Owners")
-    parser.add_argument("--workspace-id", default="jay-private")
-    parser.add_argument("--workspace-label", default="Jay's private books")
+    parser.add_argument("--workspace-id", default="maga-energy")
+    parser.add_argument("--workspace-label", default="MAGA Energy books")
     parser.add_argument("--company-name")
     parser.add_argument("--compose-project", default="arkcpa-slowbooks")
     parser.add_argument("--publish-port", type=int, default=3333)
@@ -245,6 +257,7 @@ def main() -> int:
         "provider_name": args.provider_name,
         "hostname": args.hostname,
         "owner_username": args.owner_username,
+        "member_usernames": list(args.member_username),
         "bootstrap_email": args.bootstrap_email.strip().lower(),
         "group": args.group,
         "redirect_uris": [
