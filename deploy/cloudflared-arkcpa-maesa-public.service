@@ -1,0 +1,24 @@
+[Unit]
+Description=Cloudflare tunnel for Maesa private ArkCPA workspace
+After=network-online.target arkcpa-maesa.service
+Wants=network-online.target
+Requires=arkcpa-maesa.service
+
+[Service]
+Type=simple
+User=novaadmin
+Group=novaadmin
+WorkingDirectory=/home/novaadmin
+Environment=HOME=/home/novaadmin
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel --config /home/novaadmin/.cloudflared/arkcpa-maesa-public.yml run
+Restart=always
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/novaadmin /var/log /tmp /run
+
+[Install]
+WantedBy=multi-user.target
