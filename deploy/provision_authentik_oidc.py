@@ -207,7 +207,9 @@ def _workspace_env(args: argparse.Namespace, oidc: dict[str, object]) -> dict[st
         "AUTHENTIK_OIDC_BOOTSTRAP_EMAIL": args.bootstrap_email.lower(),
         "ARKCPA_WORKSPACE_ID": args.workspace_id,
         "ARKCPA_WORKSPACE_LABEL": args.workspace_label,
-        "COMPANY_NAME": args.company_name,
+        "COMPANY_NAME": args.company_name
+        or current.get("COMPANY_NAME")
+        or "My Company",
         "EMPLOYER_STATE": current.get("EMPLOYER_STATE") or "WA",
         "SUTA_RATE": current.get("SUTA_RATE") or "0.012",
     }
@@ -227,7 +229,7 @@ def main() -> int:
     parser.add_argument("--group", default="ArkCPA Owners")
     parser.add_argument("--workspace-id", default="jay-private")
     parser.add_argument("--workspace-label", default="Jay's private books")
-    parser.add_argument("--company-name", default="My Company")
+    parser.add_argument("--company-name")
     parser.add_argument("--compose-project", default="arkcpa-slowbooks")
     parser.add_argument("--publish-port", type=int, default=3333)
     parser.add_argument("--postgres-user", default="arkcpa")
