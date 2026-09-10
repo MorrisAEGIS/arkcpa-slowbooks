@@ -1,11 +1,12 @@
 /**
- * Slowbooks Pro 2026 — Auth overlay (Phase 9.7)
+ * Ark CPA — native ARK sign-in and local recovery setup.
  *
- * Injects a full-screen login/setup overlay when the API returns 401, or
- * when /api/auth/status reports first-time setup is needed.
+ * Renders a dedicated login/setup state when the API returns 401, or when
+ * /api/auth/status reports first-time setup is needed. The accounting shell
+ * stays inert and hidden until the status probe confirms a session.
  *
  * Two views:
- *   - login: password only, with a "First time? Set up Slowbooks →" link
+ *   - login: Authentik first, with loopback-only local recovery when allowed
  *   - setup: full first-run wizard (company info, operator name/email,
  *            defaults, password) with a "Already set up? Sign in →" link
  *
@@ -19,6 +20,7 @@
     const AUTH_STATUS_URL = "/api/auth/status";
     const AUTH_SETUP_URL = "/api/auth/setup";
     const AUTH_LOGIN_URL = "/api/auth/login";
+    const AUTHENTIK_LOGIN_URL = "/api/auth/authentik";
 
     const OVERLAY_ID = "auth-overlay";
     const MIN_PASSWORD_LEN = 8;
@@ -36,6 +38,10 @@
             return { authenticated: false, setup_needed: false };
         }
     }
+
+    // One shared startup probe prevents the auth overlay and the main SPA
+    // from racing each other and firing protected dashboard calls first.
+    const initialStatus = checkStatus();
 
     async function postJSON(url, body) {
         const res = await fetch(url, {
@@ -59,84 +65,98 @@
 
     // ----- shared chrome ---------------------------------------------------
 
-    function buildShell(innerHTML) {
+    function lockApplication() {
+        document.body.classList.add("auth-pending");
+        ["app", "splash"].forEach(function (id) {
+            const element = document.getElementById(id);
+            if (!element) return;
+            element.setAttribute("aria-hidden", "true");
+            element.inert = true;
+        });
+    }
+
+    function revealApplication() {
+        document.body.classList.remove("auth-pending");
+        ["app", "splash"].forEach(function (id) {
+            const element = document.getElementById(id);
+            if (!element) return;
+            element.removeAttribute("aria-hidden");
+            element.inert = false;
+        });
+        if (window.location.pathname === "/login") {
+            window.history.replaceState(null, "", "/" + window.location.hash);
+        }
+    }
+
+    function useLoginLocation() {
+        if (window.location.pathname !== "/login") {
+            window.history.replaceState(
+                null,
+                "",
+                "/login" + window.location.search
+            );
+        }
+    }
+
+    function livingMarkHTML() {
+        return (
+            '<span class="ark-mark" role="img" aria-label="Noah\'s Ark, the ARK mark">' +
+            '<span class="ark-mark__aura" aria-hidden="true"></span>' +
+            '<img class="ark-mark__image" src="/static/brand/ark-living-mark.png?v=2.9.6" alt="">' +
+            '<span class="ark-mark__water" aria-hidden="true"></span>' +
+            "</span>"
+        );
+    }
+
+    function buildShell(innerHTML, mode) {
         const root = document.createElement("div");
         root.id = OVERLAY_ID;
-        root.setAttribute(
-            "style",
-            "position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.85);" +
-                "display:flex;align-items:flex-start;justify-content:center;" +
-                "padding:48px 16px;overflow-y:auto;" +
-                "font-family:system-ui,-apple-system,Segoe UI,sans-serif;"
-        );
-        root.innerHTML = innerHTML;
+        root.className =
+            "ark-auth-page" + (mode === "setup" ? " ark-auth-page--setup" : "");
+        root.innerHTML =
+            '<main class="ark-auth-stage">' +
+            '<section class="ark-auth-shell" aria-labelledby="auth-title">' +
+            '<header class="ark-auth-identity">' +
+            livingMarkHTML() +
+            '<p class="ark-auth-eyebrow">MAGA Energy accounting</p>' +
+            '<h1 class="ark-auth-title" id="auth-title">Ark CPA</h1>' +
+            '<p class="ark-auth-subtitle">' +
+            (mode === "setup" ? "Prepare your shared company books" : "Sign in to continue") +
+            "</p></header>" +
+            innerHTML +
+            '<p class="ark-auth-provenance">MAGA Energy · Shared accounting workspace</p>' +
+            "</section></main>";
         return root;
     }
 
-    function inputStyle() {
-        return (
-            "width:100%;padding:9px 11px;font-size:14px;border:1px solid #ccc;" +
-            "border-radius:4px;box-sizing:border-box;"
-        );
-    }
-
-    function labelStyle() {
-        return "display:block;font-size:12px;color:#555;margin:10px 0 4px;font-weight:600;";
-    }
-
-    function sectionHeader(text) {
-        return (
-            '<div style="margin:18px 0 4px;padding-bottom:4px;border-bottom:1px solid #eee;' +
-            'font-size:11px;text-transform:uppercase;letter-spacing:0.05em;color:#888;font-weight:700;">' +
-            text +
-            "</div>"
-        );
+    function inputAttributes(opts) {
+        const attrs = [];
+        if (opts.required) attrs.push('required aria-required="true"');
+        if (opts.minlength) attrs.push('minlength="' + opts.minlength + '"');
+        if (opts.placeholder) {
+            attrs.push('placeholder="' + escapeText(opts.placeholder) + '"');
+        }
+        if (opts.autocomplete) {
+            attrs.push('autocomplete="' + escapeText(opts.autocomplete) + '"');
+        }
+        if (opts.value) attrs.push('value="' + escapeText(opts.value) + '"');
+        return attrs.length ? " " + attrs.join(" ") : "";
     }
 
     function field(id, label, opts) {
         opts = opts || {};
         const type = opts.type || "text";
-        // `required` triggers HTML5 validation; `aria-required` is the
-        // semantic flag screen readers consume. Both belong on every
-        // required input — keep them in lockstep.
-        const required = opts.required ? ' required aria-required="true"' : "";
-        const minlength = opts.minlength ? ' minlength="' + opts.minlength + '"' : "";
-        const placeholder = opts.placeholder
-            ? ' placeholder="' + opts.placeholder + '"'
-            : "";
-        const autocomplete = opts.autocomplete
-            ? ' autocomplete="' + opts.autocomplete + '"'
-            : "";
-        const value = opts.value ? ' value="' + escapeText(opts.value) + '"' : "";
-        // Asterisk: bold + larger so a quick scan catches it. aria-hidden
-        // because the same info is conveyed by aria-required on the input.
         const asterisk = opts.required
-            ? ' <span aria-hidden="true" style="color:#a4242b;font-weight:700;font-size:15px;">*</span>'
+            ? ' <span class="ark-auth-required" aria-hidden="true">*</span>'
             : "";
         return (
-            '<label for="' +
-            id +
-            '" style="' +
-            labelStyle() +
-            '">' +
-            label +
-            asterisk +
+            '<div class="ark-auth-field">' +
+            '<label class="ark-auth-label" for="' + id + '">' +
+            label + asterisk +
             "</label>" +
-            '<input id="' +
-            id +
-            '" name="' +
-            id +
-            '" type="' +
-            type +
-            '"' +
-            required +
-            minlength +
-            placeholder +
-            autocomplete +
-            value +
-            ' style="' +
-            inputStyle() +
-            '">'
+            '<input class="ark-auth-input" id="' + id + '" name="' + id +
+            '" type="' + type + '"' + inputAttributes(opts) + ">" +
+            "</div>"
         );
     }
 
@@ -149,31 +169,7 @@
     }
 
     function row(...cells) {
-        return (
-            '<div style="display:grid;grid-template-columns:repeat(' +
-            cells.length +
-            ',1fr);gap:10px;">' +
-            cells.map((c) => "<div>" + c + "</div>").join("") +
-            "</div>"
-        );
-    }
-
-    function linkButtonStyle() {
-        return (
-            "display:inline;background:none;border:0;padding:0;color:#0066cc;" +
-            "font-size:13px;cursor:pointer;text-decoration:underline;font-family:inherit;"
-        );
-    }
-
-    function primaryButtonStyle() {
-        return (
-            "width:100%;padding:11px;font-size:15px;font-weight:600;" +
-            "background:#0066cc;color:#fff;border:0;border-radius:4px;cursor:pointer;"
-        );
-    }
-
-    function errorBoxStyle() {
-        return "color:#c00;font-size:13px;margin-top:10px;min-height:18px;";
+        return '<div class="ark-auth-field-row">' + cells.join("") + "</div>";
     }
 
     // ----- login view ------------------------------------------------------
@@ -182,43 +178,59 @@
     // exists, the login form gains a username field. Single-user installs
     // never see it.
     let multiUser = false;
+    let authentikEnabled = false;
+    let localPasswordLogin = true;
 
     function loginViewHTML() {
-        return (
-            '<form id="auth-form" ' +
-            'style="background:#fff;color:#111;padding:32px 28px;border-radius:8px;' +
-            'min-width:340px;max-width:400px;width:100%;' +
-            'box-shadow:0 20px 60px rgba(0,0,0,0.4);">' +
-            '<h2 style="margin:0 0 6px;font-size:20px;">Unlock Slowbooks</h2>' +
-            '<p style="margin:0 0 20px;color:#555;font-size:13px;line-height:1.5;">' +
-            (multiUser
-                ? "Sign in to continue."
-                : "Enter your password to continue.") +
-            "</p>" +
-            (multiUser
+        const authentikButton = authentikEnabled
+            ? '<a class="ark-auth-button" id="authentik-login" href="' + AUTHENTIK_LOGIN_URL + '">' +
+              'Continue with Authentik</a>'
+            : "";
+        const divider = authentikEnabled && localPasswordLogin
+            ? '<div class="ark-auth-divider">Recovery</div>'
+            : "";
+        const passwordFields = localPasswordLogin
+            ? (multiUser
                 ? field("auth-username", "Username", {
                       required: true,
                       autocomplete: "username",
-                  }) + '<div style="height:10px"></div>'
+                  })
                 : "") +
-            field("auth-password", "Password", {
-                type: "password",
-                required: true,
-                autocomplete: "current-password",
-            }) +
-            '<div style="height:14px"></div>' +
-            '<button type="submit" id="auth-submit" style="' +
-            primaryButtonStyle() +
-            '">Unlock</button>' +
-            '<div id="auth-error" style="' +
-            errorBoxStyle() +
-            '"></div>' +
-            '<div style="margin-top:16px;text-align:center;">' +
-            '<button type="button" id="auth-switch-setup" style="' +
-            linkButtonStyle() +
-            '">First time? Set up Slowbooks →</button>' +
-            "</div>" +
-            "</form>"
+              field("auth-password", "Password", {
+                  type: "password",
+                  required: true,
+                  autocomplete: "current-password",
+              }) +
+              '<button class="ark-auth-button ark-auth-button--secondary" type="submit" id="auth-submit">Sign in locally</button>'
+            : "";
+        const setupLink = localPasswordLogin
+            ? '<div class="ark-auth-switch">' +
+              '<button class="ark-auth-link" type="button" id="auth-switch-setup">First time? Set up Ark CPA</button></div>'
+            : "";
+        const localAccess = localPasswordLogin
+            ? (authentikEnabled
+                ? '<details class="ark-auth-recovery"><summary>Local recovery access</summary>' +
+                  '<div class="ark-auth-local-form">' + passwordFields + setupLink + "</div></details>"
+                : '<div class="ark-auth-local-form ark-auth-local-form--direct">' +
+                  passwordFields + setupLink + "</div>")
+            : "";
+        const authError = new URLSearchParams(window.location.search).get("auth_error");
+        const errorMessages = {
+            unavailable: "Authentik is temporarily unavailable. Try again shortly.",
+            denied: "Authentik sign-in was cancelled.",
+            invalid_state: "That sign-in expired. Start again.",
+            forbidden: "This Authentik account is not approved for Ark CPA.",
+            failed: "Ark CPA could not complete sign-in. Try again.",
+        };
+        return (
+            '<div class="ark-auth-panel"><form id="auth-form" aria-label="Ark CPA sign in">' +
+            '<p class="ark-auth-intro">' +
+            (authentikEnabled ? "Use your ARK identity to access the shared company books." :
+                (multiUser ? "Sign in to continue." : "Enter your password to continue.")) +
+            "</p>" + authentikButton + divider + localAccess +
+            '<p class="ark-auth-error" id="auth-error" role="alert" aria-live="assertive">' +
+            escapeText(errorMessages[authError] || "") +
+            "</p></form></div>"
         );
     }
 
@@ -230,17 +242,26 @@
         const btn = overlay.querySelector("#auth-submit");
         const switchBtn = overlay.querySelector("#auth-switch-setup");
 
-        (userInput || input).focus();
+        const authentikLink = overlay.querySelector("#authentik-login");
+        if (authentikLink) {
+            authentikLink.href = AUTHENTIK_LOGIN_URL + "?next=%2F";
+            authentikLink.focus();
+        } else if (userInput || input) {
+            (userInput || input).focus();
+        }
 
-        switchBtn.addEventListener("click", function () {
-            renderView("setup", onSuccess);
-        });
+        if (switchBtn) {
+            switchBtn.addEventListener("click", function () {
+                renderView("setup", onSuccess);
+            });
+        }
 
         form.addEventListener("submit", async function (e) {
             e.preventDefault();
+            if (!input || !btn) return;
             errBox.textContent = "";
             btn.disabled = true;
-            btn.textContent = "...";
+            btn.textContent = "Signing in…";
             try {
                 const body = { password: input.value };
                 if (userInput) body.username = userInput.value.trim();
@@ -261,7 +282,7 @@
                 }
                 errBox.textContent = err.message;
                 btn.disabled = false;
-                btn.textContent = "Unlock";
+                btn.textContent = "Sign in locally";
             }
         });
     }
@@ -273,29 +294,26 @@
 
     function setupViewHTML() {
         const existingNotice = existingCompany.hasData
-            ? '<div style="margin:0 0 12px;padding:10px 12px;background:#fff7e0;' +
-              'border:1px solid #e8c56a;border-radius:6px;color:#5a4300;font-size:13px;line-height:1.5;">' +
+            ? '<p class="ark-auth-notice">' +
               "This company file already contains books" +
               (existingCompany.name ? " for <strong>" + escapeText(existingCompany.name) + "</strong>" : "") +
               ". Setup only adds your operator password; keep the company name unless you mean to rename these books." +
-              "</div>"
+              "</p>"
             : "";
         return (
-            '<form id="auth-form" ' +
-            'style="background:#fff;color:#111;padding:28px 28px 24px;border-radius:8px;' +
-            'min-width:380px;max-width:440px;width:100%;' +
-            'box-shadow:0 20px 60px rgba(0,0,0,0.4);">' +
-            '<h2 style="margin:0 0 6px;font-size:22px;">Set up Slowbooks Pro 2026</h2>' +
-            '<p style="margin:0 0 8px;color:#555;font-size:13px;line-height:1.5;">' +
+            '<div class="ark-auth-panel"><form class="ark-auth-setup-form" id="auth-form" aria-label="Set up Ark CPA">' +
+            '<p class="ark-auth-intro">' +
             "Just enough to get you in. You can configure everything else later." +
             "</p>" +
             existingNotice +
-            field("operator_name", "Your name", { required: true }) +
-            field("operator_email", "Your email", {
-                type: "email",
-                required: true,
-                autocomplete: "email",
-            }) +
+            row(
+                field("operator_name", "Your name", { required: true }),
+                field("operator_email", "Your email", {
+                    type: "email",
+                    required: true,
+                    autocomplete: "email",
+                })
+            ) +
             field("company_name", "Company name", {
                 required: true,
                 placeholder: "My Company",
@@ -318,23 +336,15 @@
                 minlength: MIN_PASSWORD_LEN,
                 autocomplete: "new-password",
             }) +
-            '<div style="height:18px"></div>' +
-            '<button type="submit" id="auth-submit" style="' +
-            primaryButtonStyle() +
-            '">Set up & continue</button>' +
-            '<div id="auth-error" style="' +
-            errorBoxStyle() +
-            '"></div>' +
-            '<p style="margin:14px 0 0;color:#777;font-size:12px;line-height:1.5;text-align:center;">' +
+            '<button class="ark-auth-button" type="submit" id="auth-submit">Set up and continue</button>' +
+            '<p class="ark-auth-error" id="auth-error" role="alert" aria-live="assertive"></p>' +
+            '<p class="ark-auth-helper">' +
             "You can add your address, phone, tax ID, payment defaults, " +
             "and integrations in Settings after you sign in." +
             "</p>" +
-            '<div style="margin-top:12px;text-align:center;">' +
-            '<button type="button" id="auth-switch-login" style="' +
-            linkButtonStyle() +
-            '">Already set up? Sign in →</button>' +
-            "</div>" +
-            "</form>"
+            '<div class="ark-auth-switch">' +
+            '<button class="ark-auth-link" type="button" id="auth-switch-login">Already set up? Sign in</button>' +
+            "</div></form></div>"
         );
     }
 
@@ -387,7 +397,7 @@
             }
 
             btn.disabled = true;
-            btn.textContent = "...";
+            btn.textContent = "Creating workspace…";
             try {
                 await postJSON(AUTH_SETUP_URL, collectSetupPayload(overlay));
                 removeOverlay();
@@ -407,7 +417,7 @@
                 }
                 errBox.textContent = err.message;
                 btn.disabled = false;
-                btn.textContent = "Set up & continue";
+                btn.textContent = "Set up and continue";
             }
         });
     }
@@ -420,10 +430,13 @@
     }
 
     function renderView(mode, onSuccess) {
+        lockApplication();
+        useLoginLocation();
         removeOverlay();
         const html = mode === "setup" ? setupViewHTML() : loginViewHTML();
-        const overlay = buildShell(html);
-        document.body.appendChild(overlay);
+        const overlay = buildShell(html, mode);
+        const root = document.getElementById("auth-root");
+        (root || document.body).appendChild(overlay);
         if (mode === "setup") {
             wireSetup(overlay, onSuccess);
         } else {
@@ -441,13 +454,18 @@
         if (document.getElementById(OVERLAY_ID)) return;
         authPromptInFlight = true;
         try {
-            const status = await checkStatus();
+            const status = await initialStatus;
             multiUser = status.multi_user === true;
+            authentikEnabled = status.authentik_enabled === true;
+            localPasswordLogin = status.local_password_login !== false;
             existingCompany = {
                 name: status.company_name || "",
                 hasData: status.has_data === true,
             };
-            if (status.authenticated) return;
+            if (status.authenticated) {
+                revealApplication();
+                return;
+            }
             renderView("login", onSuccess);
         } finally {
             authPromptInFlight = false;
@@ -456,6 +474,7 @@
 
     // Expose globals so api.js can prompt on 401
     window.SlowbooksAuth = {
+        ready: initialStatus,
         promptAuth: promptAuth,
         // Back-compat: explicit view requests still work
         promptLogin: function () {

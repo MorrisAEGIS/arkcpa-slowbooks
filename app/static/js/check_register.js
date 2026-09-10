@@ -14,7 +14,7 @@ const CheckRegisterPage = {
             <div class="toolbar">
                 <label style="font-size:10px;font-weight:700;">Account:</label>
                 <select id="cr-account" onchange="CheckRegisterPage.load()">
-                    ${acctOpts || '<option>No bank accounts</option>'}
+                    ${acctOpts || '<option value="" selected disabled>No bank accounts</option>'}
                 </select>
             </div>
             <div id="cr-results"></div>`;

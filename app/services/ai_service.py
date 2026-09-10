@@ -279,7 +279,7 @@ PROVIDERS: Dict[str, ProviderSpec] = {
         docs_url="https://github.com/pnwimport/slowbooks-pro-2026/tree/main/cloudflare",
         free_tier_hint=(
             "Deploy cloudflare/worker.js in your own CF account — "
-            "real API credentials stay in Cloudflare, Slowbooks only "
+            "real API credentials stay in Cloudflare, Ark CPA only "
             "holds a shared secret"
         ),
         needs_worker_url=True,
@@ -334,7 +334,7 @@ PROVIDERS: Dict[str, ProviderSpec] = {
         wire_format="openai",
         docs_url="",
         free_tier_hint=(
-            "Point Slowbooks at any OpenAI-compatible chat endpoint on the "
+            "Point Ark CPA at any OpenAI-compatible chat endpoint on the "
             "public internet. Paste the base URL (e.g. https://api.example.com/v1) — "
             "/chat/completions is appended automatically. HTTPS only; "
             "localhost, LAN and other private addresses are refused (SSRF guard), "

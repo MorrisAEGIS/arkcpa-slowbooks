@@ -266,7 +266,7 @@ async def lifespan(app: FastAPI):
 # (fast, and the reason ORJSONResponse was deprecated in 0.136). We let it use
 # its default response class rather than pinning the now-deprecated ORJSON one.
 app = FastAPI(
-    title="Slowbooks Pro 2026",
+    title="Ark CPA API",
     version=__version__,
     lifespan=lifespan,
     description=(
@@ -491,6 +491,7 @@ _AUTH_EXEMPT_PREFIXES = (
 )
 _AUTH_EXEMPT_EXACT = {
     "/",
+    "/login",
     "/health",
     # The published AI docs (llms.txt, ai/agents-template.md) tell agents to
     # fetch the spec FIRST and "discover endpoints from the spec; do not
@@ -827,6 +828,12 @@ async def serve_index():
     return FileResponse(str(index_path))
 
 
+@app.get("/login", include_in_schema=False)
+async def serve_login():
+    """Serve the dedicated browser sign-in state from the SPA shell."""
+    return FileResponse(str(index_path))
+
+
 @app.get("/analytics")
 async def serve_analytics_redirect():
     """Backwards-compat: old /analytics bookmarks land on the SPA hash route.
@@ -853,7 +860,14 @@ async def serve_analytics_redirect():
 # Applied globally, with the genuinely public routes exempted so the document
 # stays truthful in both directions.
 # ---------------------------------------------------------------------------
-_PUBLIC_FOR_SPEC = {"/", "/health", "/openapi.json", "/analytics", "/favicon.ico"}
+_PUBLIC_FOR_SPEC = {
+    "/",
+    "/login",
+    "/health",
+    "/openapi.json",
+    "/analytics",
+    "/favicon.ico",
+}
 _PUBLIC_PREFIXES_FOR_SPEC = ("/api/auth/", "/pay/", "/portal/", "/static/")
 
 

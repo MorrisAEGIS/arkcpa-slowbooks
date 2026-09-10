@@ -4,7 +4,7 @@
  *
  * Switching companies is NOT done live from this page. On desktop installs
  * each company is its own database file (like a QuickBooks company file):
- * close SlowBooks Pro and reopen it, and the launcher asks which company
+ * close Ark CPA and reopen it, and the launcher asks which company
  * to open. On server (PostgreSQL) installs each company is a separate
  * database configured at deploy time.
  */
@@ -18,7 +18,7 @@ const CompaniesPage = {
             </div>
             <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">
                 Each company is stored in its own separate database.
-                To switch companies, close SlowBooks Pro and open it again — you'll be asked which company to open.
+                To switch companies, close Ark CPA and open it again — you'll be asked which company to open.
             </p>`;
 
         if (companies.length === 0) {
@@ -64,7 +64,7 @@ const CompaniesPage = {
         if (!data.database_name) delete data.database_name;
         try {
             await API.post('/companies', data);
-            toast('Company created. Close and reopen SlowBooks Pro to open it.');
+            toast('Company created. Close and reopen Ark CPA to open it.');
             closeModal();
             App.navigate('#/companies');
         } catch (err) { toast(err.message, 'error'); }

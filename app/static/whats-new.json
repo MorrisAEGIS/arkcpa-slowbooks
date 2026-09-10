@@ -1,4 +1,20 @@
 {
+  "2.9.6": {
+    "title": "One Ark CPA for the whole team",
+    "items": [
+      "Invite each person by verified Authentik email and assign an admin, bookkeeper or read-only role",
+      "Pending invitations bind once to an immutable Authentik identity on first sign-in",
+      "The shell always shows the signed-in person and the shared company books"
+    ]
+  },
+  "2.9.5": {
+    "title": "Ark CPA across every workspace",
+    "items": [
+      "A new ARK accounting workbench now carries Ark CPA from sign-in through every navigation group, form, report and public portal",
+      "Dark and light themes, a mobile navigation drawer and viewport-safe tables keep the full accounting workflow usable on smaller screens",
+      "Versioned browser assets and a visible release marker make stale deployments immediately detectable"
+    ]
+  },
   "2.9.4": {
     "title": "Company logo on every document",
     "items": [
@@ -39,7 +55,7 @@
       "Donation receipts and acknowledgment letters with the IRS language; in-kind gifts; year-end giving statements",
       "Pledge report over recurring pledges; write-offs to Bad Debt Expense; credit memos can be voided",
       "P&L by Class groups on the line's class; voids carry every dimension",
-      "Save PDF lands in Documents → SlowBooks Pro → Reports and says so; saved reports are a compact list; statements compare to the prior year",
+      "Save PDF lands in Documents → Ark CPA → Reports and says so; saved reports are a compact list; statements compare to the prior year",
       "Agents: unknown request fields are rejected (422), tax_rate is documented as a fraction and bounded, DELETE on a posted document names the void route, PTO enums in the spec",
       "Desktop: Save PDF explains a refused Documents folder and says where the file went; macOS app stapled before the DMG; a fresh company can run depreciation",
       "macOS: Save PDF, print preview, Save backup and Show in folder work again (the desktop bridge was blocked by the app's security policy since 2.1.0); Save CSV lands next to Save PDF with a Show-in-folder notice",

@@ -55,7 +55,7 @@ def send_email(
     user = smtp.get("smtp_user", "")
     password = smtp.get("smtp_password", "")
     from_email = smtp.get("smtp_from_email", user)
-    from_name = smtp.get("smtp_from_name", "Slowbooks Pro")
+    from_name = smtp.get("smtp_from_name", "Ark CPA")
     use_tls = smtp.get("smtp_use_tls", "true").lower() == "true"
 
     if not host or not from_email:

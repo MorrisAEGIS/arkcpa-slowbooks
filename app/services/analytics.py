@@ -335,7 +335,7 @@ class AnalyticsEngine:
         """Lifetime paid revenue per customer (first pass at profitability).
 
         Real COGS attribution would require per-customer cost tagging, which
-        SlowBooks doesn't model yet — so for now this is revenue-only.
+        Ark CPA doesn't model yet — so for now this is revenue-only.
         """
         rows = (
             self.db.query(

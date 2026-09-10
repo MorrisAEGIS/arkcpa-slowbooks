@@ -7,6 +7,47 @@ on what the software does, not on what sprint shipped what.
 
 ## [Unreleased]
 
+### v2.9.6 — One Ark CPA, with a real identity for every user
+
+**Ark CPA now supports explicit Authentik invitations in one shared set of
+books.** An admin records the person's verified email and least-privilege role;
+the first successful Authentik login binds that invitation to its immutable
+issuer and subject. Bound identities cannot be transferred by changing an
+email address, duplicate invitations fail closed, and inactive invitations
+stay blocked. Local passwords remain optional loopback recovery credentials.
+
+**Users & access now explains the workflow users actually follow.** The admin
+table distinguishes pending invitations, linked Authentik identities, and local
+recovery users. The top bar names the signed-in person and shared company books,
+while the obsolete per-person deployment instructions and Maesa tunnel unit are
+retired.
+
+### v2.9.5 — Ark CPA across the complete operator surface
+
+**The accounting workspace is now Ark CPA from sign-in through generated
+documents.** The authenticated shell, every accounting route, public payment
+and employee portals, emails, PDFs, PWA metadata, API title, errors, exports,
+and first-run setup now use the exact `Ark CPA` product name. The required
+Slowbooks source acknowledgment remains in About/legal, while compatible
+technical identifiers and existing data formats remain unchanged.
+
+**ARK-native visual and accessibility contracts now apply throughout.** The
+interface is dark-first with a complete light theme, a persistent theme
+choice, a responsive off-canvas accounting navigation, 44-pixel mobile
+targets, contained tables, and the canonical Living Ark sign-in motion. A
+reduced-motion preference stops that motion completely. Browser acceptance
+operates real setup, themes, About, all visible routes, and desktop/mobile
+navigation against the packaged release image.
+
+**Empty new workspaces no longer make an invalid Check Register request.** An
+empty account selector now has an empty disabled value, so Ark CPA does not
+send the words “No bank accounts” to an integer API parameter.
+
+**Fresh Docker backup and upload volumes inherit the application user.** The
+image now creates both mountpoints before dropping privileges, so new named
+volumes remain writable by Ark CPA and the in-app PostgreSQL backup gate works
+without running the server as root.
+
 ### v2.9.4 — The company logo on every document; exception text stays in the log
 
 **Every PDF now carries the company logo when one is set.** The logo

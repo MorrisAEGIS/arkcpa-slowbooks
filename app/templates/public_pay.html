@@ -3,43 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pay Invoice #{{ inv.invoice_number }} — {{ company.get('company_name', '') }}</title>
+    <title>Pay Invoice #{{ inv.invoice_number }} — {{ company.get('company_name', '') }} — Ark CPA</title>
     <style>
+        @font-face {
+            font-family: "Ark Sans";
+            src: url("/static/fonts/Inter-Regular.woff2") format("woff2");
+            font-weight: 400;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: "Ark Sans";
+            src: url("/static/fonts/Inter-SemiBold.woff2") format("woff2");
+            font-weight: 600;
+            font-display: swap;
+        }
+        :root {
+            color-scheme: dark;
+            --bg: #111712;
+            --surface: #1a211b;
+            --surface-muted: #151b16;
+            --border: #3a453b;
+            --text: #eef1e9;
+            --muted: #abb3a8;
+            --gold: #d5ad62;
+            --mint: #75c79a;
+            --mint-ink: #112119;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, sans-serif;
-            background: #eef1f5;
-            color: #1a1a2e;
-            min-height: 100vh;
+            font-family: "Ark Sans", "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100dvh;
             display: flex;
             justify-content: center;
             padding: 40px 16px;
         }
         .pay-card {
-            background: #ffffff;
-            border: 1px solid #c0c8d0;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: 0 22px 64px rgba(0,0,0,0.28);
             width: 100%;
             max-width: 520px;
             height: fit-content;
+            border-radius: 8px;
+            overflow: hidden;
         }
         .pay-header {
-            background: linear-gradient(180deg, #336699 0%, #003366 100%);
-            color: white;
+            background: var(--surface-muted);
+            color: var(--text);
             padding: 24px;
-            text-align: center;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
         }
         .pay-header h1 { font-size: 20px; margin-bottom: 4px; }
-        .pay-header .inv-number { font-size: 14px; opacity: 0.85; }
+        .pay-header .inv-number { color: var(--gold); font-size: 13px; }
         .pay-body { padding: 24px; }
         .detail-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         .detail-table td {
             padding: 8px 0;
             font-size: 14px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border);
         }
         .detail-table td:first-child {
-            color: #4a4a6a;
+            color: var(--muted);
             font-weight: 600;
             width: 40%;
         }
@@ -47,24 +74,25 @@
         .balance-row td {
             font-size: 18px;
             font-weight: 700;
-            color: #003366;
-            border-bottom: 2px solid #003366;
+            color: var(--text);
+            border-bottom: 2px solid var(--gold);
             padding: 12px 0;
         }
         .pay-btn {
             display: block;
             width: 100%;
             padding: 14px;
-            background: linear-gradient(180deg, #336699 0%, #003366 100%);
-            color: white;
-            border: none;
+            background: var(--mint);
+            color: var(--mint-ink);
+            border: 1px solid var(--mint);
             border-radius: 4px;
             font-size: 16px;
-            font-weight: 700;
+            font-weight: 600;
             cursor: pointer;
             margin-top: 8px;
         }
-        .pay-btn:hover { background: linear-gradient(180deg, #4a7fb5 0%, #336699 100%); }
+        .pay-btn:hover { filter: brightness(0.94); }
+        .pay-btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
         .pay-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .status-box {
             padding: 16px;
@@ -74,37 +102,44 @@
             font-weight: 600;
             margin-bottom: 16px;
         }
-        .status-success { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
-        .status-cancelled { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
-        .status-paid { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+        .status-success { background: #173523; color: #8bdbaa; border: 1px solid #3d8457; }
+        .status-cancelled { background: #372c16; color: #e7c776; border: 1px solid #786331; }
+        .status-paid { background: #1a2f2b; color: #83cfc0; border: 1px solid #417a70; }
         .pay-footer {
             padding: 12px 24px;
             text-align: center;
             font-size: 11px;
-            color: #7a7a9a;
-            border-top: 1px solid #eee;
+            color: var(--muted);
+            border-top: 1px solid var(--border);
         }
         .company-info {
             font-size: 12px;
-            color: #4a4a6a;
+            color: var(--muted);
             text-align: center;
             margin-bottom: 16px;
         }
 
-        @media (prefers-color-scheme: dark) {
-            body { background: #14161c; color: #e0e4ec; }
-            .pay-card { background: #1e2028; border-color: #2e3240; }
-            .pay-header { background: linear-gradient(180deg, #2a5a8a 0%, #1a3050 100%); }
-            .detail-table td { border-bottom-color: #2e3240; }
-            .detail-table td:first-child { color: #a0a8b8; }
-            .balance-row td { color: #8ab4e0; border-bottom-color: #5b9bd5; }
-            .pay-btn { background: linear-gradient(180deg, #2a5a8a 0%, #1e4470 100%); }
-            .pay-btn:hover { background: linear-gradient(180deg, #3a6a9a 0%, #2a5a8a 100%); }
-            .status-success { background: #1a3a2a; color: #4caf7a; border-color: #2a6a4a; }
-            .status-cancelled { background: #2a2518; color: #e0a840; border-color: #4a4020; }
-            .status-paid { background: #1a2838; color: #6bb3e8; border-color: #2a5a8a; }
-            .pay-footer { color: #606878; border-top-color: #2e3240; }
-            .company-info { color: #a0a8b8; }
+        @media (prefers-color-scheme: light) {
+            :root {
+                color-scheme: light;
+                --bg: #eee9dd;
+                --surface: #fbf9f3;
+                --surface-muted: #f4f0e6;
+                --border: #d0c8b8;
+                --text: #263027;
+                --muted: #59645a;
+                --gold: #9b6f27;
+                --mint: #4f9d72;
+                --mint-ink: #f8fff9;
+            }
+            .status-success { background: #e4f5e9; color: #28633b; border-color: #78ad87; }
+            .status-cancelled { background: #f8efd7; color: #73571c; border-color: #cbb26e; }
+            .status-paid { background: #e2f2ef; color: #275f55; border-color: #7cb2a8; }
+        }
+        @media (max-width: 560px) {
+            body { padding: 16px 10px; }
+            .pay-header, .pay-body { padding: 20px 18px; }
+            .detail-table td { font-size: 13px; }
         }
     </style>
 </head>
@@ -170,7 +205,7 @@
             {% endfor %}
             {% endif %}
         </div>
-        <div class="pay-footer">Powered by Slowbooks Pro 2026</div>
+        <div class="pay-footer">Secured by Ark CPA</div>
     </div>
 
     <script>

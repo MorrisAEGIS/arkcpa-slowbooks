@@ -1,5 +1,5 @@
 # ============================================================================
-# Slowbooks Pro 2026 — Docker Image
+# Ark CPA — Docker Image
 # Runs on Linux, macOS, and Windows via Docker Desktop
 # ============================================================================
 
@@ -45,7 +45,9 @@ RUN python -m compileall -q -j 0 /usr/local/lib/python3.13/site-packages /app ||
 
 RUN chmod +x docker-entrypoint.sh
 
-RUN useradd -m -u 1000 slowbooks && chown -R slowbooks:slowbooks /app
+RUN useradd -m -u 1000 slowbooks \
+    && mkdir -p /app/backups /app/app/static/uploads \
+    && chown -R slowbooks:slowbooks /app
 USER slowbooks
 
 EXPOSE 3001

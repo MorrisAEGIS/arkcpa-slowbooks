@@ -29,8 +29,9 @@ BACKUP_DIR = storage.backups_root()
 BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 
 # Strict filename allow-list. Backup files we create are named
-# "slowbooks_YYYYMMDD_HHMMSS.sql" (Postgres) or ".db" (SQLite); we accept
-# any safe basename matching this character class with a known backup
+# New files use "ark_cpa_YYYYMMDD_HHMMSS.sql" (Postgres) or ".db" (SQLite).
+# Legacy Slowbooks filenames remain restorable; we accept any safe basename
+# matching this character class with a known backup
 # extension. NO path separators, NO ".." components -- this is the trust
 # boundary that CodeQL needs to see at the start of restore_backup()
 # before BACKUP_DIR / filename is constructed.
@@ -101,7 +102,7 @@ def _create_sqlite_backup(db: Session, notes: str, backup_type: str) -> dict:
         }
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"slowbooks_{timestamp}.db"
+    filename = f"ark_cpa_{timestamp}.db"
     filepath = BACKUP_DIR / filename
 
     try:
@@ -167,7 +168,7 @@ def create_backup(db: Session, notes: str = None, backup_type: str = "manual") -
 
     params = _parse_db_url(DATABASE_URL)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"slowbooks_{timestamp}.sql"
+    filename = f"ark_cpa_{timestamp}.sql"
     filepath = BACKUP_DIR / filename
 
     env = {"PGPASSWORD": params["password"]}
@@ -280,6 +281,8 @@ def list_backup_files() -> list[dict]:
     """List all backup files in the backup directory."""
     files = []
     candidates = [
+        *BACKUP_DIR.glob("ark_cpa_*.sql"),
+        *BACKUP_DIR.glob("ark_cpa_*.db"),
         *BACKUP_DIR.glob("slowbooks_*.sql"),
         *BACKUP_DIR.glob("slowbooks_*.db"),
     ]

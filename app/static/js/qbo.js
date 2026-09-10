@@ -66,7 +66,7 @@ const QBOPage = {
                 <div class="iif-section">
                     <h3>&#9650; Import from QuickBooks Online</h3>
                     <p style="font-size:11px; color:var(--text-secondary); margin-bottom:12px;">
-                        Pull data from your connected QuickBooks Online company into Slowbooks.
+                        Pull data from your connected QuickBooks Online company into Ark CPA.
                         Existing records are detected by name/number and skipped.
                     </p>
 
@@ -95,7 +95,7 @@ const QBOPage = {
                 <div class="iif-section">
                     <h3>&#9660; Export to QuickBooks Online</h3>
                     <p style="font-size:11px; color:var(--text-secondary); margin-bottom:12px;">
-                        Push Slowbooks data to your connected QuickBooks Online company.
+                        Push Ark CPA data to your connected QuickBooks Online company.
                         Already-exported records are skipped.
                     </p>
 

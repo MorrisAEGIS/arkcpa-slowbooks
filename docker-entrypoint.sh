@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "Slowbooks Pro 2026 — Starting up..."
+echo "Ark CPA — Starting up..."
 
 # Wait for PostgreSQL (max 30 seconds)
 echo "Waiting for PostgreSQL..."
@@ -43,7 +43,7 @@ if [ -z "${SKIP_BOOT_SELFCHECK:-}" ] && python -c "import pytest" 2>/dev/null; t
     fi
 fi
 
-echo "Starting Slowbooks Pro 2026 on port ${APP_PORT:-3001}..."
+echo "Starting Ark CPA on port ${APP_PORT:-3001}..."
 # Multi-worker production mode.
 # uvloop + httptools come from uvicorn[standard], explicit for clarity.
 # APP_WORKERS defaults to 2 (tunable via docker-compose env or .env).

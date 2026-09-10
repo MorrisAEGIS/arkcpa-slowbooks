@@ -30,8 +30,6 @@
  * tiled BMP in the original. We recreated it as a CSS gradient. Close enough.
  * ============================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Tahoma&display=swap');
-
 :root {
     /* -- QB2003 "Default Blue" skin palette (extracted via Resource Hacker) -- */
     --qb-navy:        #003366;
@@ -204,6 +202,38 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+
+.ark-workspace-chip {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    max-width: 280px;
+    gap: 5px;
+    padding: 3px 8px;
+    border: 1px solid rgba(42, 112, 72, 0.38);
+    border-radius: 999px;
+    background: rgba(225, 245, 232, 0.78);
+    color: #194b2d;
+    font-size: 10px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.ark-workspace-chip[hidden] { display: none; }
+
+.ark-workspace-chip__lock {
+    flex: 0 0 auto;
+    font-size: 9px;
+}
+
+#ark-workspace-chip-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+@media (max-width: 980px) {
+    .ark-workspace-chip { max-width: 150px; }
 }
 
 .topbar-clock {

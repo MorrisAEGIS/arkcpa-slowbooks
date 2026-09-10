@@ -3,85 +3,122 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Employee Portal{% endblock %} — {{ company_name }}</title>
+    <title>{% block title %}Employee Portal{% endblock %} — {{ company_name }} — Ark CPA</title>
     <link rel="icon" type="image/png" href="/portal/favicon.ico">
     <style>
+        @font-face {
+            font-family: "Ark Sans";
+            src: url("/static/fonts/Inter-Regular.woff2") format("woff2");
+            font-weight: 400;
+            font-display: swap;
+        }
+        @font-face {
+            font-family: "Ark Sans";
+            src: url("/static/fonts/Inter-SemiBold.woff2") format("woff2");
+            font-weight: 600;
+            font-display: swap;
+        }
+        :root {
+            color-scheme: dark;
+            --bg: #111712;
+            --surface: #1a211b;
+            --surface-muted: #151b16;
+            --border: #3a453b;
+            --text: #eef1e9;
+            --muted: #abb3a8;
+            --gold: #d5ad62;
+            --mint: #75c79a;
+            --mint-ink: #112119;
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Tahoma, sans-serif;
-            background: #eef1f5;
-            color: #1a1a2e;
-            min-height: 100vh;
+            font-family: "Ark Sans", "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100dvh;
             display: flex;
             justify-content: center;
             padding: 40px 16px;
         }
         .portal-card {
-            background: #ffffff;
-            border: 1px solid #c0c8d0;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            box-shadow: 0 22px 64px rgba(0,0,0,0.28);
             width: 100%;
             max-width: 720px;
             height: fit-content;
+            border-radius: 8px;
+            overflow: hidden;
         }
         .portal-header {
-            background: linear-gradient(180deg, #336699 0%, #003366 100%);
-            color: white;
+            background: var(--surface-muted);
+            color: var(--text);
             padding: 24px;
+            border-bottom: 1px solid var(--border);
         }
         .portal-header { display: flex; align-items: center; gap: 16px; }
         .portal-header .portal-brand { flex: 1; }
         .portal-header h1 { font-size: 20px; margin-bottom: 4px; }
         .portal-header .subtitle { font-size: 13px; opacity: 0.85; }
         .portal-header .company-logo {
-            max-height: 56px; max-width: 140px; background: rgba(255,255,255,0.92);
+            max-height: 56px; max-width: 140px; background: #f8f5ed;
             padding: 6px 10px; border-radius: 4px;
         }
         .portal-nav {
             display: flex;
             flex-wrap: wrap;
-            background: #f4f6f9;
-            border-bottom: 1px solid #d8dee6;
+            background: var(--surface-muted);
+            border-bottom: 1px solid var(--border);
         }
         .portal-nav a {
             padding: 12px 16px;
             font-size: 13px;
             font-weight: 600;
-            color: #336699;
+            color: var(--muted);
             text-decoration: none;
             border-bottom: 3px solid transparent;
         }
-        .portal-nav a:hover { background: #e8edf3; }
+        .portal-nav a:hover { background: var(--surface); color: var(--text); }
         .portal-nav a.active {
-            color: #003366;
-            border-bottom-color: #003366;
-            background: #ffffff;
+            color: var(--text);
+            border-bottom-color: var(--gold);
+            background: var(--surface);
         }
+        .portal-logout {
+            min-height: 44px;
+            padding: 12px 16px;
+            border: 0;
+            background: transparent;
+            color: var(--muted);
+            font: 600 13px/1 "Ark Sans", sans-serif;
+            cursor: pointer;
+        }
+        .portal-logout:hover { color: var(--text); background: var(--surface); }
         .portal-body { padding: 24px; }
-        h2 { font-size: 17px; color: #003366; margin-bottom: 14px; }
-        h3 { font-size: 14px; color: #003366; margin: 20px 0 10px; }
+        h2 { font-size: 17px; color: var(--text); margin-bottom: 14px; }
+        h3 { font-size: 14px; color: var(--text); margin: 20px 0 10px; }
         p { font-size: 14px; line-height: 1.5; }
         .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
         .data-table th, .data-table td {
             padding: 9px 10px;
             font-size: 13px;
             text-align: left;
-            border-bottom: 1px solid #e4e8ee;
+            border-bottom: 1px solid var(--border);
         }
         .data-table th {
-            color: #4a4a6a;
+            color: var(--muted);
             font-weight: 700;
-            background: #f4f6f9;
+            background: var(--surface-muted);
         }
         .data-table td.num, .data-table th.num { text-align: right; }
         .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
         .summary-table td {
             padding: 8px 0;
             font-size: 14px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border);
         }
         .summary-table td:first-child {
-            color: #4a4a6a;
+            color: var(--muted);
             font-weight: 600;
             width: 42%;
         }
@@ -100,7 +137,7 @@
             display: block;
             font-size: 13px;
             font-weight: 600;
-            color: #4a4a6a;
+            color: var(--muted);
             margin-bottom: 4px;
         }
         .field input[type=text],
@@ -111,10 +148,10 @@
             width: 100%;
             padding: 8px 10px;
             font-size: 14px;
-            border: 1px solid #c0c8d0;
+            border: 1px solid var(--border);
             border-radius: 4px;
-            background: #ffffff;
-            color: #1a1a2e;
+            background: var(--surface-muted);
+            color: var(--text);
         }
         .field textarea { min-height: 70px; resize: vertical; }
         .field.checkbox label { display: flex; align-items: center; gap: 8px; }
@@ -124,16 +161,19 @@
         .btn {
             display: inline-block;
             padding: 11px 20px;
-            background: linear-gradient(180deg, #336699 0%, #003366 100%);
-            color: white;
-            border: none;
+            background: var(--mint);
+            color: var(--mint-ink);
+            border: 1px solid var(--mint);
             border-radius: 4px;
             font-size: 14px;
             font-weight: 700;
             cursor: pointer;
             text-decoration: none;
         }
-        .btn:hover { background: linear-gradient(180deg, #4a7fb5 0%, #336699 100%); }
+        .btn:hover { filter: brightness(0.94); }
+        .btn:focus-visible, .portal-nav a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+            outline: 2px solid var(--gold); outline-offset: 3px;
+        }
         .pill {
             display: inline-block;
             padding: 2px 9px;
@@ -147,15 +187,36 @@
         .pill-denied { background: #fee2e2; color: #991b1b; }
         .pill-active { background: #dbeafe; color: #1e40af; }
         .pill-inactive { background: #e4e8ee; color: #4a4a6a; }
-        .muted { color: #7a7a9a; font-size: 13px; }
+        .muted { color: var(--muted); font-size: 13px; }
         .portal-footer {
             padding: 12px 24px;
             text-align: center;
             font-size: 11px;
-            color: #7a7a9a;
-            border-top: 1px solid #eee;
+            color: var(--muted);
+            border-top: 1px solid var(--border);
         }
-        a.link { color: #336699; font-weight: 600; }
+        a.link { color: var(--mint); font-weight: 600; }
+        @media (prefers-color-scheme: light) {
+            :root {
+                color-scheme: light;
+                --bg: #eee9dd;
+                --surface: #fbf9f3;
+                --surface-muted: #f4f0e6;
+                --border: #d0c8b8;
+                --text: #263027;
+                --muted: #59645a;
+                --gold: #9b6f27;
+                --mint: #4f9d72;
+                --mint-ink: #f8fff9;
+            }
+        }
+        @media (max-width: 600px) {
+            body { padding: 16px 10px; }
+            .portal-header, .portal-body { padding: 20px 18px; }
+            .field-row { flex-direction: column; gap: 0; }
+            .portal-nav a, .portal-nav button { min-height: 44px; }
+            .data-table { display: block; overflow-x: auto; }
+        }
     </style>
 </head>
 <body>
@@ -176,13 +237,13 @@
             <a href="/portal/bank"{% if active == 'bank' %} class="active"{% endif %}>Bank</a>
             <a href="/portal/pto"{% if active == 'pto' %} class="active"{% endif %}>Time Off</a>
             <form method="post" action="/portal/logout" style="margin-left:auto;display:inline">
-                <button type="submit" style="background:none;border:none;padding:12px 16px;font-size:13px;font-weight:600;color:#336699;cursor:pointer">Log out</button>
+                <button class="portal-logout" type="submit">Sign out</button>
             </form>
         </nav>
         <div class="portal-body">
             {% block content %}{% endblock %}
         </div>
-        <div class="portal-footer">Powered by Slowbooks Pro 2026</div>
+        <div class="portal-footer">Private employee access by Ark CPA</div>
     </div>
 </body>
 </html>
