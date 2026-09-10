@@ -35,6 +35,8 @@ def _user_out(u: User) -> dict:
         "username": u.username,
         "display_name": u.display_name,
         "role": u.role,
+        "email": u.email or "",
+        "auth_source": "authentik" if u.oidc_subject else "local",
         "is_active": u.is_active,
         "created_at": u.created_at.isoformat() if u.created_at else None,
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,

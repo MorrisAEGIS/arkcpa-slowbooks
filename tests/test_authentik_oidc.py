@@ -19,6 +19,7 @@ ENV = {
     "AUTHENTIK_OIDC_CLIENT_SECRET": "secret",
     "AUTHENTIK_OIDC_REDIRECT_URI": "https://books.example/api/auth/authentik/callback",
     "AUTHENTIK_OIDC_REQUIRED_GROUP": "ARK Family",
+    "AUTHENTIK_OIDC_BOOTSTRAP_EMAIL": "owner@example.com",
 }
 
 
@@ -140,6 +141,8 @@ def test_valid_callback_issues_normal_slowbooks_admin_session(
     unauthed_client, monkeypatch
 ):
     _enable_oidc(monkeypatch)
+    monkeypatch.setenv("ARKCPA_WORKSPACE_ID", "jay-private")
+    monkeypatch.setenv("ARKCPA_WORKSPACE_LABEL", "Jay's private books")
     # Local break-glass setup materializes the admin that OIDC maps to.
     setup = unauthed_client.post(
         "/api/auth/setup",
@@ -172,6 +175,8 @@ def test_valid_callback_issues_normal_slowbooks_admin_session(
             "sub": "authentik-user-id",
             "email": "owner@example.com",
             "email_verified": True,
+            "preferred_username": "jay",
+            "name": "Jay Morris",
             "groups": ["ARK Family"],
         }
 
@@ -195,4 +200,11 @@ def test_valid_callback_issues_normal_slowbooks_admin_session(
         "/api/auth/status", headers={"host": "testserver"}
     ).json()
     assert status_response["authenticated"] is True
+    assert status_response["user"]["username"] == "jay"
+    assert status_response["user"]["email"] == "owner@example.com"
     assert status_response["user"]["role"] == "admin"
+    assert status_response["workspace"] == {
+        "id": "jay-private",
+        "label": "Jay's private books",
+        "isolation": "dedicated-stack",
+    }

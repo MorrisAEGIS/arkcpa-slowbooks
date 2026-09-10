@@ -11,6 +11,7 @@
 # ============================================================================
 
 import logging
+import os
 import secrets
 from datetime import datetime, timezone
 from typing import Optional
@@ -223,6 +224,12 @@ def auth_status(request: Request, db: Session = Depends(get_db)):
             "username": request.session.get("username"),
             "display_name": request.session.get("display_name") or "",
             "role": request.session.get("role") or "admin",
+            "email": request.session.get("oidc_email") or "",
+        }
+        out["workspace"] = {
+            "id": request.session.get("workspace_id") or "private",
+            "label": request.session.get("workspace_label") or "Private books",
+            "isolation": "dedicated-stack",
         }
     return out
 
@@ -285,16 +292,9 @@ async def authentik_callback(request: Request, db: Session = Depends(get_db)):
         id_token = await exchange_authorization_code(code, verifier, discovery, config)
         claims = await verify_id_token(id_token, nonce, discovery, config)
 
-        from app.models.users import ROLE_ADMIN, User
+        from app.services.oidc_identity import resolve_oidc_principal
 
-        user = (
-            db.query(User)
-            .filter(User.role == ROLE_ADMIN, User.is_active)
-            .order_by(User.id)
-            .first()
-        ) or ensure_admin_user(db)
-        if user is None:
-            raise RuntimeError("SlowBooks local admin has not been initialized")
+        user = resolve_oidc_principal(db, claims, config.issuer)
         db.info["acting_username"] = user.username
         user.last_login_at = datetime.now(timezone.utc)
         db.commit()
@@ -305,6 +305,12 @@ async def authentik_callback(request: Request, db: Session = Depends(get_db)):
         _stash_user(request, user)
         request.session["oidc_sub"] = str(claims["sub"])
         request.session["oidc_email"] = str(claims["email"]).strip().lower()
+        request.session["workspace_id"] = (
+            os.environ.get("ARKCPA_WORKSPACE_ID") or "private"
+        ).strip()
+        request.session["workspace_label"] = (
+            os.environ.get("ARKCPA_WORKSPACE_LABEL") or "Private books"
+        ).strip()
 
         response = RedirectResponse(_app_redirect(return_to), status_code=302)
         _clear_attempt_cookies(response, secure)
@@ -312,7 +318,7 @@ async def authentik_callback(request: Request, db: Session = Depends(get_db)):
         return response
     except PermissionError:
         _record_login_attempt(db, request, success=False)
-        logger.warning("Authentik OIDC login rejected by the required-group policy")
+        logger.warning("Authentik OIDC login rejected by identity policy")
         return _oidc_error(secure, "forbidden")
     except Exception:
         _record_login_attempt(db, request, success=False)

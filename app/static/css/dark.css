@@ -75,6 +75,11 @@
 [data-theme="dark"] .tb-btn { color: var(--text-secondary); }
 [data-theme="dark"] .tb-btn:hover { background: rgba(255,255,255,0.08); border-color: #4a4e58; color: #e0e4ec; }
 [data-theme="dark"] .topbar-clock { color: var(--text-secondary); }
+[data-theme="dark"] .ark-workspace-chip {
+    border-color: rgba(119, 206, 145, 0.36);
+    background: rgba(27, 72, 45, 0.72);
+    color: #c9f2d6;
+}
 
 /* Sun icon (shown in dark mode — click to return to light) gets warm amber */
 [data-theme="dark"] #theme-toggle {
