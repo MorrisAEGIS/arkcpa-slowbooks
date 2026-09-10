@@ -29,7 +29,7 @@ services:
       retries: 20
 
   slowbooks:
-    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.9.4-ark-isolation-b031bd8-20260909}
+    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.9.4-ark-isolation-clean-20260909}
     build:
       context: .
     restart: unless-stopped
