@@ -5,10 +5,10 @@
 const App = {
     routes: {
         '/':              { page: 'dashboard',       label: 'Dashboard',          render: () => DashboardPage.render() },
-        '/ark-cpa':       { page: 'ark-cpa',         label: 'Control Center',     render: () => ArkCPA.renderControlCenter() },
+        '/ark-cpa':       { page: 'ark-cpa',         label: 'Controller Home',    render: () => ArkCPA.renderControlCenter() },
         '/ark-cpa/evidence': { page: 'ark-cpa-evidence', label: 'Evidence',       render: () => ArkCPA.renderEvidence() },
-        '/ark-cpa/review': { page: 'ark-cpa-review', label: 'Agent Review',       render: () => ArkCPA.renderReview() },
-        '/ark-cpa/compliance': { page: 'ark-cpa-compliance', label: 'Compliance', render: () => ArkCPA.renderCompliance() },
+        '/ark-cpa/review': { page: 'ark-cpa-review', label: 'Review Queue',        render: () => ArkCPA.renderReview() },
+        '/ark-cpa/compliance': { page: 'ark-cpa-compliance', label: 'Tax & Compliance', render: () => ArkCPA.renderCompliance() },
         '/ark-cpa/entities': { page: 'ark-cpa-entities', label: 'Entities',       render: () => ArkCPA.renderEntities() },
         '/customers':     { page: 'customers',       label: 'Customer Center',    render: () => CustomersPage.render() },
         '/jobs':          { page: 'jobs',            label: 'Jobs',               render: () => JobsPage.render() },

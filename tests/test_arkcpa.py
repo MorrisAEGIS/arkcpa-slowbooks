@@ -33,6 +33,9 @@ def _control_fixture(db, accounts):
         fiscal_year_end_month=12,
         fiscal_year_end_day=31,
         payroll_enabled=False,
+        posting_mode="assisted",
+        facts_status="verified",
+        profile={},
     )
     db.add(entity)
     db.flush()
@@ -129,6 +132,19 @@ def test_posting_gate_fails_closed_on_agent_independence_or_confidence(
 
     assert result["passed"] is False
     assert failed_check in result["failed"]
+
+
+def test_draft_only_mode_blocks_ledger_posting(client, db_session, seed_accounts):
+    entity, _evidence, candidate = _control_fixture(db_session, seed_accounts)
+    entity.posting_mode = "draft_only"
+    db_session.add(_decision(candidate, "bookkeeper", "family-a"))
+    db_session.add(_decision(candidate, "controller", "family-b"))
+    db_session.commit()
+
+    result = evaluate_candidate(db_session, db_session, candidate)
+
+    assert result["passed"] is False
+    assert "posting_mode_allows_entry" in result["failed"]
 
 
 def test_agent_approvals_are_invalidated_when_evidence_hash_changes(

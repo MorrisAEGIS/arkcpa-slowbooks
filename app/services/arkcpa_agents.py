@@ -102,10 +102,10 @@ def build_agent_context(
         "evidence": {"sha256": evidence_hash, "facts": deepcopy(extracted_facts)},
         "chart": deepcopy(chart),
     }
-    if agent_role == "controller":
-        if candidate is None:
-            raise ValueError("Ark Controller requires the Bookkeeper candidate")
-        context["bookkeeper_candidate"] = deepcopy(candidate)
+    if candidate is not None:
+        context["posting_candidate"] = deepcopy(candidate)
+    if agent_role == "controller" and candidate is None:
+        raise ValueError("Ark Controller requires the Bookkeeper candidate")
     return _sanitize(context)
 
 

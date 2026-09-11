@@ -92,13 +92,23 @@ from app.models.items import InventoryMovement
 from app.models.saved_reports import SavedReport
 from app.models.arkcpa import (  # noqa: F401 — Ark CPA control plane
     ArkAgentDecision,
+    ArkAgentDecisionRun,
     ArkAgentGrant,
+    ArkAuthoritySource,
     ArkComplianceObligation,
+    ArkControllerIssue,
+    ArkControllerRun,
     ArkEntity,
     ArkEntityAccess,
+    ArkEntityRelationship,
     ArkEvidence,
+    ArkEvidenceFact,
+    ArkImportRun,
     ArkPostingCandidate,
     ArkProtectedAction,
+    ArkRuleProposal,
+    ArkSourceSnapshot,
+    ArkWorkpaperPackage,
 )
 
 __all__ = [
@@ -176,9 +186,19 @@ __all__ = [
     "ArkEvidence",
     "ArkPostingCandidate",
     "ArkAgentDecision",
+    "ArkAgentDecisionRun",
     "ArkAgentGrant",
+    "ArkAuthoritySource",
     "ArkProtectedAction",
     "ArkComplianceObligation",
+    "ArkControllerIssue",
+    "ArkControllerRun",
+    "ArkEntityRelationship",
+    "ArkEvidenceFact",
+    "ArkImportRun",
+    "ArkRuleProposal",
+    "ArkSourceSnapshot",
+    "ArkWorkpaperPackage",
     # Auth audit
     "LoginAttempt",
     # Document audit (tax forms, regulated PDFs)

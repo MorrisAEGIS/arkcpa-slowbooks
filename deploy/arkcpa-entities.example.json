@@ -11,10 +11,15 @@
       "fiscal_year_end_month": 12,
       "fiscal_year_end_day": 31,
       "default_user": "jay",
-      "access": {"jay": "admin", "maesa": "bookkeeper"}
+      "posting_mode": "assisted",
+      "facts_status": "incomplete",
+      "access": {
+        "jay": {"role": "admin", "protected_approver": true},
+        "maesa": {"role": "admin", "protected_approver": false}
+      }
     },
     {
-      "name": "EXACT_ALBERTA_CORPORATION_NAME",
+      "name": "EXACT_ALBERTA_OPERATING_CORPORATION_NAME",
       "slug": "alberta-corporation-1",
       "entity_type": "ca_ab_corporation",
       "database_name": "arkcpa_ab_corp_1",
@@ -23,7 +28,29 @@
       "status": "active",
       "fiscal_year_end_month": 12,
       "fiscal_year_end_day": 31,
-      "access": {"jay": "admin", "maesa": "bookkeeper"}
+      "posting_mode": "assisted",
+      "facts_status": "incomplete",
+      "access": {
+        "jay": {"role": "admin", "protected_approver": true},
+        "maesa": {"role": "admin", "protected_approver": false}
+      }
+    },
+    {
+      "name": "EXACT_ALBERTA_HOLDING_CORPORATION_NAME",
+      "slug": "alberta-corporation-2",
+      "entity_type": "ca_ab_corporation",
+      "database_name": "arkcpa_ab_corp_2",
+      "jurisdiction": "Canada / Alberta",
+      "currency": "CAD",
+      "status": "active",
+      "fiscal_year_end_month": 12,
+      "fiscal_year_end_day": 31,
+      "posting_mode": "assisted",
+      "facts_status": "incomplete",
+      "access": {
+        "jay": {"role": "admin", "protected_approver": true},
+        "maesa": {"role": "admin", "protected_approver": false}
+      }
     },
     {
       "name": "EXACT_FAMILY_TRUST_NAME",
@@ -35,7 +62,12 @@
       "status": "active",
       "fiscal_year_end_month": 12,
       "fiscal_year_end_day": 31,
-      "access": {"jay": "admin", "maesa": "bookkeeper"}
+      "posting_mode": "assisted",
+      "facts_status": "incomplete",
+      "access": {
+        "jay": {"role": "admin", "protected_approver": true},
+        "maesa": {"role": "admin", "protected_approver": false}
+      }
     },
     {
       "name": "EXACT_TEXAS_LLC_NAME",
@@ -47,7 +79,12 @@
       "status": "dormant",
       "fiscal_year_end_month": 12,
       "fiscal_year_end_day": 31,
-      "access": {"jay": "admin", "maesa": "bookkeeper"}
+      "posting_mode": "draft_only",
+      "facts_status": "incomplete",
+      "access": {
+        "jay": {"role": "admin", "protected_approver": true},
+        "maesa": {"role": "admin", "protected_approver": false}
+      }
     }
   ]
 }

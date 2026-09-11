@@ -122,8 +122,30 @@ def test_upgrade_flags_bank_accounts_links_feeds_and_remaps_statement_lines(tmp_
     }
     assert (
         con.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-        == "a9b0c1d2e3f4"
+        == "b0c1d2e3f4a5"
     )
+    entity_columns = {
+        row[1] for row in con.execute("PRAGMA table_info(ark_entities)")
+    }
+    assert {"posting_mode", "facts_status", "profile"} <= entity_columns
+    assert "protected_approver" in {
+        row[1] for row in con.execute("PRAGMA table_info(ark_entity_access)")
+    }
+    tables = {
+        row[0]
+        for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    }
+    assert {
+        "ark_evidence_facts",
+        "ark_import_runs",
+        "ark_controller_runs",
+        "ark_controller_issues",
+        "ark_agent_decision_runs",
+        "ark_authority_sources",
+        "ark_source_snapshots",
+        "ark_rule_proposals",
+        "ark_workpaper_packages",
+    } <= tables
     con.close()
 
 

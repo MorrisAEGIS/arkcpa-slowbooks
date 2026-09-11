@@ -42,6 +42,14 @@ class ArkEntity(Base):
             "status IN ('active', 'dormant', 'archived')",
             name="ck_ark_entities_status",
         ),
+        CheckConstraint(
+            "posting_mode IN ('draft_only', 'assisted', 'autopost_ordinary', 'frozen')",
+            name="ck_ark_entities_posting_mode",
+        ),
+        CheckConstraint(
+            "facts_status IN ('incomplete', 'verified', 'hold')",
+            name="ck_ark_entities_facts_status",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
@@ -56,6 +64,9 @@ class ArkEntity(Base):
     fiscal_year_end_month = Column(Integer, nullable=False, default=12)
     fiscal_year_end_day = Column(Integer, nullable=False, default=31)
     payroll_enabled = Column(Boolean, nullable=False, default=False)
+    posting_mode = Column(String(30), nullable=False, default="draft_only", index=True)
+    facts_status = Column(String(20), nullable=False, default="incomplete", index=True)
+    profile = Column(JSON, nullable=False, default=dict)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     updated_at = Column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
@@ -81,6 +92,7 @@ class ArkEntityAccess(Base):
     )
     role = Column(String(20), nullable=False)
     is_default = Column(Boolean, nullable=False, default=False)
+    protected_approver = Column(Boolean, nullable=False, default=False)
     granted_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
@@ -246,6 +258,9 @@ class ArkProtectedAction(Base):
     requested_by = Column(String(100), nullable=False)
     approved_by = Column(String(100), nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
+    approval_note = Column(String(1000), nullable=True)
+    decision_hash = Column(String(64), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
 
@@ -279,3 +294,287 @@ class ArkComplianceObligation(Base):
     updated_at = Column(
         DateTime(timezone=True), default=_utcnow, onupdate=_utcnow, nullable=False
     )
+
+
+class ArkEntityRelationship(Base):
+    __tablename__ = "ark_entity_relationships"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('active', 'historical', 'unverified')",
+            name="ck_ark_entity_relationship_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    entity_id = Column(
+        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    related_entity_id = Column(
+        Integer, ForeignKey("ark_entities.id", ondelete="SET NULL"), nullable=True
+    )
+    subject_label = Column(String(240), nullable=False)
+    relationship_type = Column(String(80), nullable=False, index=True)
+    effective_from = Column(Date, nullable=True)
+    effective_to = Column(Date, nullable=True)
+    status = Column(String(20), nullable=False, default="unverified")
+    source_evidence_id = Column(
+        Integer, ForeignKey("ark_evidence.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class ArkImportRun(Base):
+    __tablename__ = "ark_import_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('ark_files', 'bank_file', 'mail', 'tax_source')",
+            name="ck_ark_import_run_kind",
+        ),
+        CheckConstraint(
+            "status IN ('running', 'completed', 'partial', 'blocked', 'failed')",
+            name="ck_ark_import_run_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    entity_id = Column(
+        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    kind = Column(String(20), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="running", index=True)
+    counts = Column(JSON, nullable=False, default=dict)
+    manifest_hash = Column(String(64), nullable=True)
+    error_code = Column(String(80), nullable=True)
+    error_message = Column(String(500), nullable=True)
+    started_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class ArkEvidenceFact(Base):
+    __tablename__ = "ark_evidence_facts"
+    __table_args__ = (
+        UniqueConstraint("evidence_id", "fact_key", "locator", name="uq_ark_evidence_fact"),
+        CheckConstraint(
+            "status IN ('extracted', 'verified', 'rejected')",
+            name="ck_ark_evidence_fact_status",
+        ),
+        CheckConstraint(
+            "confidence >= 0 AND confidence <= 1",
+            name="ck_ark_evidence_fact_confidence",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    evidence_id = Column(
+        Integer, ForeignKey("ark_evidence.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    fact_key = Column(String(100), nullable=False, index=True)
+    value = Column(JSON, nullable=False)
+    confidence = Column(Numeric(5, 4), nullable=False)
+    locator = Column(String(240), nullable=False, default="document")
+    source_hash = Column(String(64), nullable=False)
+    extractor_version = Column(String(80), nullable=False)
+    status = Column(String(20), nullable=False, default="extracted", index=True)
+    reviewed_by = Column(String(100), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class ArkAuthoritySource(Base):
+    __tablename__ = "ark_authority_sources"
+    __table_args__ = (
+        UniqueConstraint("code", name="uq_ark_authority_source_code"),
+        CheckConstraint(
+            "authority_level IN ('law', 'regulation', 'court', 'administrative', "
+            "'proposed', 'lead')",
+            name="ck_ark_authority_source_level",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    code = Column(String(100), nullable=False)
+    title = Column(String(300), nullable=False)
+    jurisdiction = Column(String(80), nullable=False, index=True)
+    authority_level = Column(String(30), nullable=False, index=True)
+    url = Column(String(1000), nullable=False)
+    license_note = Column(String(300), nullable=True)
+    enabled = Column(Boolean, nullable=False, default=True)
+    last_checked_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class ArkSourceSnapshot(Base):
+    __tablename__ = "ark_source_snapshots"
+    __table_args__ = (
+        UniqueConstraint("source_id", "content_hash", name="uq_ark_source_snapshot_hash"),
+        CheckConstraint(
+            "status IN ('current', 'superseded', 'proposed', 'failed')",
+            name="ck_ark_source_snapshot_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    source_id = Column(
+        Integer, ForeignKey("ark_authority_sources.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    content_hash = Column(String(64), nullable=False, index=True)
+    retrieved_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    effective_from = Column(Date, nullable=True)
+    effective_to = Column(Date, nullable=True)
+    status = Column(String(20), nullable=False, default="current", index=True)
+    snapshot_metadata = Column(JSON, nullable=False, default=dict)
+
+
+class ArkRuleProposal(Base):
+    __tablename__ = "ark_rule_proposals"
+    __table_args__ = (
+        UniqueConstraint("source_snapshot_id", "code", name="uq_ark_rule_proposal"),
+        CheckConstraint(
+            "status IN ('draft', 'testing', 'approved', 'rejected', 'promoted')",
+            name="ck_ark_rule_proposal_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    source_snapshot_id = Column(
+        Integer, ForeignKey("ark_source_snapshots.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code = Column(String(120), nullable=False)
+    title = Column(String(300), nullable=False)
+    proposed_change = Column(JSON, nullable=False)
+    status = Column(String(20), nullable=False, default="draft", index=True)
+    test_results = Column(JSON, nullable=False, default=dict)
+    requested_by = Column(String(100), nullable=False, default="tax-research-agent")
+    approved_by = Column(String(100), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class ArkControllerRun(Base):
+    __tablename__ = "ark_controller_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "run_type IN ('daily', 'weekly', 'monthly', 'annual', 'candidate')",
+            name="ck_ark_controller_run_type",
+        ),
+        CheckConstraint(
+            "status IN ('queued', 'running', 'completed', 'blocked', 'failed')",
+            name="ck_ark_controller_run_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    entity_id = Column(
+        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    run_type = Column(String(20), nullable=False, index=True)
+    status = Column(String(20), nullable=False, default="queued", index=True)
+    policy_version = Column(String(80), nullable=False)
+    summary = Column(JSON, nullable=False, default=dict)
+    error_code = Column(String(80), nullable=True)
+    started_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class ArkControllerIssue(Base):
+    __tablename__ = "ark_controller_issues"
+    __table_args__ = (
+        CheckConstraint(
+            "severity IN ('info', 'low', 'medium', 'high', 'critical')",
+            name="ck_ark_controller_issue_severity",
+        ),
+        CheckConstraint(
+            "status IN ('open', 'acknowledged', 'resolved', 'dismissed')",
+            name="ck_ark_controller_issue_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    run_id = Column(
+        Integer, ForeignKey("ark_controller_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    entity_id = Column(
+        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    evidence_id = Column(
+        Integer, ForeignKey("ark_evidence.id", ondelete="SET NULL"), nullable=True
+    )
+    category = Column(String(80), nullable=False, index=True)
+    severity = Column(String(20), nullable=False, default="medium", index=True)
+    status = Column(String(20), nullable=False, default="open", index=True)
+    title = Column(String(300), nullable=False)
+    detail = Column(Text, nullable=False)
+    due_date = Column(Date, nullable=True)
+    assigned_to = Column(String(100), nullable=True)
+    resolved_by = Column(String(100), nullable=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+
+class ArkAgentDecisionRun(Base):
+    __tablename__ = "ark_agent_decision_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "agent_role IN ('bookkeeper', 'controller')",
+            name="ck_ark_agent_decision_run_role",
+        ),
+        CheckConstraint(
+            "decision IN ('approve', 'reject', 'escalate')",
+            name="ck_ark_agent_decision_run_value",
+        ),
+        CheckConstraint(
+            "confidence >= 0 AND confidence <= 1",
+            name="ck_ark_agent_decision_run_confidence",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    candidate_id = Column(
+        Integer, ForeignKey("ark_posting_candidates.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    controller_run_id = Column(
+        Integer, ForeignKey("ark_controller_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    agent_role = Column(String(20), nullable=False)
+    model_id = Column(String(160), nullable=False)
+    model_family = Column(String(100), nullable=False)
+    prompt_version = Column(String(80), nullable=False)
+    policy_version = Column(String(80), nullable=False)
+    confidence = Column(Numeric(5, 4), nullable=False)
+    decision = Column(String(20), nullable=False)
+    evidence_hash = Column(String(64), nullable=False)
+    context_hash = Column(String(64), nullable=False)
+    rationale_hash = Column(String(64), nullable=False)
+    response_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False, index=True)
+
+
+class ArkWorkpaperPackage(Base):
+    __tablename__ = "ark_workpaper_packages"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft', 'ready_for_jay', 'approved', 'exported', 'superseded')",
+            name="ck_ark_workpaper_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    entity_id = Column(
+        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    obligation_id = Column(
+        Integer, ForeignKey("ark_compliance_obligations.id", ondelete="SET NULL"), nullable=True
+    )
+    tax_year = Column(Integer, nullable=False, index=True)
+    status = Column(String(30), nullable=False, default="draft", index=True)
+    manifest = Column(JSON, nullable=False, default=dict)
+    package_hash = Column(String(64), nullable=False)
+    disclaimer = Column(
+        Text,
+        nullable=False,
+        default="Prepared for owner and licensed-professional review; not filed or submitted.",
+    )
+    created_by = Column(String(100), nullable=False)
+    approved_by = Column(String(100), nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)

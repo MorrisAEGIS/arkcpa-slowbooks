@@ -67,6 +67,14 @@ services:
       ARK_FILES_ROOT: /ark-files
       ARKCPA_MAX_EVIDENCE_BYTES: ${ARKCPA_MAX_EVIDENCE_BYTES:-52428800}
       ARKCPA_MAX_SCAN_FILES: ${ARKCPA_MAX_SCAN_FILES:-10000}
+      ARKCPA_AI_BASE_URL: ${ARKCPA_AI_BASE_URL:-}
+      ARKCPA_AI_API_KEY: ${ARKCPA_AI_API_KEY:-}
+      ARKCPA_AI_ALLOWED_HOSTS: ${ARKCPA_AI_ALLOWED_HOSTS:-litellm,host.docker.internal,127.0.0.1,localhost}
+      ARKCPA_BOOKKEEPER_MODEL: ${ARKCPA_BOOKKEEPER_MODEL:-ark-coder-oss}
+      ARKCPA_BOOKKEEPER_FAMILY: ${ARKCPA_BOOKKEEPER_FAMILY:-gpt-oss}
+      ARKCPA_CONTROLLER_MODEL: ${ARKCPA_CONTROLLER_MODEL:-ark-brain}
+      ARKCPA_CONTROLLER_FAMILY: ${ARKCPA_CONTROLLER_FAMILY:-nemotron3-super}
+      ARKCPA_REQUIRE_GATEWAY_FAMILY_PROOF: ${ARKCPA_REQUIRE_GATEWAY_FAMILY_PROOF:-true}
       RATE_LIMIT_ENABLED: "1"
       PAYROLL_ENCRYPTION_SECRET: ${PAYROLL_ENCRYPTION_SECRET:?missing PAYROLL_ENCRYPTION_SECRET}
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:?missing SESSION_SECRET_KEY}
@@ -80,6 +88,8 @@ services:
       - slowbooks_uploads:/app/app/static/uploads
       - slowbooks_backups:/app/backups
       - ${ARK_FILES_ROOT_HOST:-/home/novaadmin/ark-files}:/ark-files:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test:
         - CMD
@@ -93,6 +103,48 @@ services:
       timeout: 5s
       start_period: 30s
       retries: 4
+
+  controller-worker:
+    profiles: ["controller"]
+    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.10.1-ark-controller}
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      slowbooks:
+        condition: service_healthy
+    entrypoint: ["python", "scripts/run_arkcpa_controller.py"]
+    command:
+      - --apply
+      - --loop
+      - --mode
+      - daily
+      - --interval
+      - ${ARKCPA_CONTROLLER_INTERVAL_SECONDS:-900}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ARKCPA_ENTITY_MODE: "true"
+      ARK_FILES_ROOT: /ark-files
+      ARKCPA_MAX_EVIDENCE_BYTES: ${ARKCPA_MAX_EVIDENCE_BYTES:-52428800}
+      ARKCPA_MAX_SCAN_FILES: ${ARKCPA_MAX_SCAN_FILES:-10000}
+      ARKCPA_CONTROLLER_INTERVAL_SECONDS: ${ARKCPA_CONTROLLER_INTERVAL_SECONDS:-900}
+      ARKCPA_CONTROLLER_MAX_CANDIDATES: ${ARKCPA_CONTROLLER_MAX_CANDIDATES:-25}
+      ARKCPA_AI_BASE_URL: ${ARKCPA_AI_BASE_URL:-}
+      ARKCPA_AI_API_KEY: ${ARKCPA_AI_API_KEY:-}
+      ARKCPA_AI_ALLOWED_HOSTS: ${ARKCPA_AI_ALLOWED_HOSTS:-litellm,host.docker.internal,127.0.0.1,localhost}
+      ARKCPA_BOOKKEEPER_MODEL: ${ARKCPA_BOOKKEEPER_MODEL:-ark-coder-oss}
+      ARKCPA_BOOKKEEPER_FAMILY: ${ARKCPA_BOOKKEEPER_FAMILY:-gpt-oss}
+      ARKCPA_CONTROLLER_MODEL: ${ARKCPA_CONTROLLER_MODEL:-ark-brain}
+      ARKCPA_CONTROLLER_FAMILY: ${ARKCPA_CONTROLLER_FAMILY:-nemotron3-super}
+      ARKCPA_REQUIRE_GATEWAY_FAMILY_PROOF: ${ARKCPA_REQUIRE_GATEWAY_FAMILY_PROOF:-true}
+      ARKCPA_CONTROLLER_ALLOW_POSTING: ${ARKCPA_CONTROLLER_ALLOW_POSTING:-false}
+      ARKCPA_CONTROLLER_REFRESH_TAX: ${ARKCPA_CONTROLLER_REFRESH_TAX:-false}
+    volumes:
+      - ${ARK_FILES_ROOT_HOST:-/home/novaadmin/ark-files}:/ark-files:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      disable: true
 
 volumes:
   postgres_data:

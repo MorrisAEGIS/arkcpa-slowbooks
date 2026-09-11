@@ -68,7 +68,37 @@ def _classification(path: Path, size: int) -> tuple[str, str | None]:
         return "quarantined", "empty file"
     if size > MAX_EVIDENCE_BYTES:
         return "quarantined", "file exceeds evidence size limit"
+    try:
+        with path.open("rb") as handle:
+            signature = handle.read(8)
+    except OSError:
+        return "quarantined", "file could not be read"
+    if signature.startswith((b"MZ", b"\x7fELF")):
+        return "quarantined", "executable content is not accepted as evidence"
+    if extension == ".pdf" and not signature.startswith(b"%PDF-"):
+        return "quarantined", "file signature does not match PDF extension"
     return "indexed", None
+
+
+def resolve_evidence_path(entity: ArkEntity, source_path: str) -> Path:
+    """Resolve an indexed source path inside one entity's read-only folder."""
+    relative = Path(source_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("Evidence path must be relative")
+    unresolved = ARK_FILES_ROOT / relative
+    if unresolved.is_symlink() or any(
+        parent.is_symlink()
+        for parent in unresolved.parents
+        if parent != ARK_FILES_ROOT and ARK_FILES_ROOT in parent.parents
+    ):
+        raise ValueError("Evidence path cannot contain symlinks")
+    candidate = unresolved.resolve(strict=True)
+    entity_root = _safe_entity_root(entity)
+    if candidate == entity_root or entity_root not in candidate.parents:
+        raise ValueError("Evidence path is outside the entity folder")
+    if not candidate.is_file():
+        raise ValueError("Evidence path is not a regular file")
+    return candidate
 
 
 def scan_entity_files(db: Session, entity: ArkEntity) -> dict:

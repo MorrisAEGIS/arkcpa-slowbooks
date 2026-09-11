@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
+import json
 import re
 from typing import Literal
 
@@ -20,19 +21,31 @@ from app.database import (
 from app.models.api_tokens import ApiToken
 from app.models.arkcpa import (
     ArkAgentDecision,
+    ArkAgentDecisionRun,
     ArkAgentGrant,
+    ArkAuthoritySource,
     ArkComplianceObligation,
+    ArkControllerIssue,
+    ArkControllerRun,
     ArkEntity,
     ArkEntityAccess,
     ArkEvidence,
+    ArkEvidenceFact,
     ArkPostingCandidate,
     ArkProtectedAction,
+    ArkRuleProposal,
+    ArkSourceSnapshot,
+    ArkWorkpaperPackage,
 )
 from app.models.transactions import Transaction
 from app.models.users import User
 from app.schemas.common import StrictModel
 from app.services.accounting import create_journal_entry
-from app.services.ark_files import scan_entity_files
+from app.services.arkcpa_controller import (
+    ARKCPA_LEDGER_SOURCE_TYPE,
+    run_candidate_review,
+)
+from app.services.arkcpa_ingestion import scan_and_extract_entity
 from app.services.arkcpa_policy import evaluate_candidate
 from app.services.arkcpa_rules import (
     ENTITY_TYPES,
@@ -42,7 +55,9 @@ from app.services.arkcpa_rules import (
     PROTECTED_ACTIONS,
     is_protected_action,
     obligations_for,
+    validate_entity_profile,
 )
+from app.services.arkcpa_tax import refresh_all_authority_sources, seed_authority_sources
 from app.services.company_service import create_company
 from app.services.settings_service import set_setting
 
@@ -67,10 +82,51 @@ def _principal(request: Request) -> tuple[str, str, str | None]:
     )
 
 
+def _require_human(request: Request) -> str:
+    kind, name, _role = _principal(request)
+    if kind != "user":
+        raise HTTPException(status_code=403, detail="Human account required")
+    return name
+
+
 def _require_admin(request: Request) -> str:
-    kind, name, role = _principal(request)
-    if kind != "user" or role != "admin":
+    name = _require_human(request)
+    if _principal(request)[2] != "admin":
         raise HTTPException(status_code=403, detail="Human admin required")
+    return name
+
+
+def _require_entity_admin(db: Session, request: Request, entity_id: int) -> str:
+    name = _require_human(request)
+    access = _human_access(db, name, entity_id)
+    if access is None or access.role != "admin":
+        raise HTTPException(status_code=403, detail="Entity admin required")
+    return name
+
+
+def _require_protected_approver(db: Session, request: Request, entity_id: int) -> str:
+    name = _require_entity_admin(db, request, entity_id)
+    access = _human_access(db, name, entity_id)
+    if access is None or not access.protected_approver:
+        raise HTTPException(status_code=403, detail="Protected owner approval required")
+    return name
+
+
+def _require_any_protected_approver(db: Session, request: Request) -> str:
+    name = _require_human(request)
+    row = (
+        db.query(ArkEntityAccess)
+        .join(User, User.id == ArkEntityAccess.user_id)
+        .filter(
+            User.username == name,
+            User.is_active,
+            ArkEntityAccess.role == "admin",
+            ArkEntityAccess.protected_approver,
+        )
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=403, detail="Protected owner approval required")
     return name
 
 
@@ -126,7 +182,10 @@ def _require_entity_access(
 
 
 def _entity_out(
-    entity: ArkEntity, role: str | None = None, active: bool = False
+    entity: ArkEntity,
+    role: str | None = None,
+    active: bool = False,
+    protected_approver: bool = False,
 ) -> dict:
     return {
         "id": entity.id,
@@ -138,6 +197,9 @@ def _entity_out(
         ),
         "jurisdiction": entity.jurisdiction,
         "status": entity.status,
+        "posting_mode": entity.posting_mode,
+        "facts_status": entity.facts_status,
+        "profile": entity.profile or {},
         "currency": entity.currency,
         "fiscal_year_end": f"{entity.fiscal_year_end_month:02d}-{entity.fiscal_year_end_day:02d}",
         "ark_files_path": entity.ark_files_path,
@@ -145,6 +207,7 @@ def _entity_out(
             "evidence-only" if not entity.payroll_enabled else "human-controlled"
         ),
         "access_role": role,
+        "protected_approver": protected_approver,
         "active": active,
     }
 
@@ -213,6 +276,18 @@ class AccessGrant(StrictModel):
     username: str = Field(..., min_length=1, max_length=100)
     role: Literal["admin", "bookkeeper", "readonly"]
     is_default: bool = False
+    protected_approver: bool = False
+
+
+class EntityGovernanceUpdate(StrictModel):
+    posting_mode: Literal["draft_only", "assisted", "autopost_ordinary", "frozen"]
+    facts_status: Literal["incomplete", "verified", "hold"]
+    profile: dict = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def profile_excludes_sensitive_values(self):
+        validate_entity_profile(self.profile)
+        return self
 
 
 class AgentGrantIn(StrictModel):
@@ -257,6 +332,17 @@ class AgentDecisionIn(StrictModel):
     rationale: str = Field(..., min_length=1, max_length=20000)
 
 
+class ProtectedDecisionIn(StrictModel):
+    decision: Literal["approved", "rejected"]
+    note: str = Field(..., min_length=3, max_length=1000)
+
+
+class WorkpaperCreate(StrictModel):
+    obligation_id: int | None = None
+    tax_year: int = Field(..., ge=2000, le=2200)
+    evidence_ids: list[int] = Field(..., min_length=1, max_length=1000)
+
+
 @router.get("/status")
 def arkcpa_status(request: Request, db: Session = Depends(get_control_db)):
     entities = list_entities(request, db)
@@ -266,6 +352,9 @@ def arkcpa_status(request: Request, db: Session = Depends(get_control_db)):
         "review_queue": 0,
         "protected_actions": 0,
         "obligations": 0,
+        "controller_issues": 0,
+        "tax_changes": 0,
+        "workpapers": 0,
     }
     if entity_ids:
         counts = {
@@ -292,6 +381,21 @@ def arkcpa_status(request: Request, db: Session = Depends(get_control_db)):
                 ArkComplianceObligation.status.in_(("monitoring", "open", "prepared")),
             )
             .count(),
+            "controller_issues": db.query(ArkControllerIssue)
+            .filter(
+                ArkControllerIssue.entity_id.in_(entity_ids),
+                ArkControllerIssue.status.in_(("open", "acknowledged")),
+            )
+            .count(),
+            "tax_changes": db.query(ArkRuleProposal)
+            .filter(ArkRuleProposal.status.in_(("draft", "testing", "approved")))
+            .count(),
+            "workpapers": db.query(ArkWorkpaperPackage)
+            .filter(
+                ArkWorkpaperPackage.entity_id.in_(entity_ids),
+                ArkWorkpaperPackage.status.in_(("draft", "ready_for_jay")),
+            )
+            .count(),
         }
     return {
         "product": "Ark CPA",
@@ -300,6 +404,9 @@ def arkcpa_status(request: Request, db: Session = Depends(get_control_db)):
         "autonomous_confidence_threshold": MIN_AUTONOMOUS_CONFIDENCE,
         "raw_documents_in_model_memory": False,
         "cloud_fallback": "redacted-only",
+        "model_gateway": "internal-only",
+        "automatic_tax_rule_promotion": False,
+        "filing_and_money_movement": "human-protected",
         "payroll": "evidence-and-reminders-only",
         "counts": counts,
         "entities": entities,
@@ -326,7 +433,7 @@ def list_entities(request: Request, db: Session = Depends(get_control_db)):
     )
     if kind == "token":
         rows = (
-            db.query(ArkEntity, ArkAgentGrant.agent_role)
+            db.query(ArkEntity, ArkAgentGrant)
             .join(ArkAgentGrant, ArkAgentGrant.entity_id == ArkEntity.id)
             .join(ApiToken, ApiToken.id == ArkAgentGrant.token_id)
             .filter(ApiToken.label == name, ApiToken.is_active, ArkAgentGrant.is_active)
@@ -335,7 +442,7 @@ def list_entities(request: Request, db: Session = Depends(get_control_db)):
         )
     else:
         rows = (
-            db.query(ArkEntity, ArkEntityAccess.role)
+            db.query(ArkEntity, ArkEntityAccess)
             .join(ArkEntityAccess, ArkEntityAccess.entity_id == ArkEntity.id)
             .join(User, User.id == ArkEntityAccess.user_id)
             .filter(User.username == name, User.is_active)
@@ -343,7 +450,13 @@ def list_entities(request: Request, db: Session = Depends(get_control_db)):
             .all()
         )
     return [
-        _entity_out(entity, role, entity.slug == active_slug) for entity, role in rows
+        _entity_out(
+            entity,
+            access.agent_role if kind == "token" else access.role,
+            entity.slug == active_slug,
+            False if kind == "token" else bool(access.protected_approver),
+        )
+        for entity, access in rows
     ]
 
 
@@ -384,6 +497,8 @@ def create_entity(
         raise HTTPException(
             status_code=409, detail="Admin principal is not materialized"
         )
+    if db.query(ArkEntity.id).first() is not None:
+        _require_any_protected_approver(db, request)
 
     if entity_mode_enabled():
         result = create_company(
@@ -411,6 +526,9 @@ def create_entity(
         fiscal_year_end_month=data.fiscal_year_end_month,
         fiscal_year_end_day=data.fiscal_year_end_day,
         payroll_enabled=False,
+        posting_mode="draft_only" if data.status == "dormant" else "assisted",
+        facts_status="incomplete",
+        profile={},
     )
     db.add(entity)
     db.flush()
@@ -424,6 +542,7 @@ def create_entity(
             user_id=user.id,
             role="admin",
             is_default=first_membership,
+            protected_approver=True,
         )
     )
     for obligation in obligations_for(entity.entity_type):
@@ -432,7 +551,7 @@ def create_entity(
     request.session["active_entity_id"] = entity.id
     request.session["active_entity_slug"] = entity.slug
     request.session["active_entity_name"] = entity.name
-    return _entity_out(entity, "admin", True)
+    return _entity_out(entity, "admin", True, True)
 
 
 @router.post("/entities/{slug}/activate")
@@ -448,7 +567,13 @@ def activate_entity(slug: str, request: Request, db: Session = Depends(get_contr
     request.session["active_entity_id"] = entity.id
     request.session["active_entity_slug"] = entity.slug
     request.session["active_entity_name"] = entity.name
-    return _entity_out(entity, active=True)
+    access = _human_access(db, _principal(request)[1], entity.id)
+    return _entity_out(
+        entity,
+        access.role if access else None,
+        True,
+        bool(access and access.protected_approver),
+    )
 
 
 @router.put("/entities/{entity_id}/access")
@@ -458,8 +583,8 @@ def grant_entity_access(
     request: Request,
     db: Session = Depends(get_control_db),
 ):
-    _require_admin(request)
     entity = db.get(ArkEntity, entity_id)
+    _require_entity_admin(db, request, entity_id)
     user = (
         db.query(User)
         .filter(User.username == data.username.strip().lower(), User.is_active)
@@ -475,8 +600,25 @@ def grant_entity_access(
     if row is None:
         row = ArkEntityAccess(entity_id=entity_id, user_id=user.id)
         db.add(row)
+    if data.protected_approver or bool(row.protected_approver):
+        _require_protected_approver(db, request, entity_id)
+    if row.protected_approver and not data.protected_approver:
+        remaining = (
+            db.query(ArkEntityAccess)
+            .filter(
+                ArkEntityAccess.entity_id == entity_id,
+                ArkEntityAccess.protected_approver,
+                ArkEntityAccess.user_id != user.id,
+            )
+            .count()
+        )
+        if remaining == 0:
+            raise HTTPException(
+                status_code=409, detail="Each entity requires a protected approver"
+            )
     row.role = data.role
     row.is_default = data.is_default
+    row.protected_approver = data.protected_approver
     if data.is_default:
         db.query(ArkEntityAccess).filter(
             ArkEntityAccess.user_id == user.id,
@@ -488,6 +630,35 @@ def grant_entity_access(
         "username": user.username,
         "role": row.role,
         "is_default": row.is_default,
+        "protected_approver": row.protected_approver,
+    }
+
+
+@router.put("/entities/{entity_id}/governance")
+def update_entity_governance(
+    entity_id: int,
+    data: EntityGovernanceUpdate,
+    request: Request,
+    db: Session = Depends(get_control_db),
+):
+    approver = _require_protected_approver(db, request, entity_id)
+    entity = db.get(ArkEntity, entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    if entity.status == "dormant" and data.posting_mode == "autopost_ordinary":
+        raise HTTPException(
+            status_code=409, detail="Dormant entities cannot enable autonomous posting"
+        )
+    entity.posting_mode = data.posting_mode
+    entity.facts_status = data.facts_status
+    entity.profile = data.profile
+    db.commit()
+    return {
+        "entity_id": entity.id,
+        "posting_mode": entity.posting_mode,
+        "facts_status": entity.facts_status,
+        "profile": entity.profile,
+        "approved_by": approver,
     }
 
 
@@ -498,7 +669,7 @@ def grant_agent(
     request: Request,
     db: Session = Depends(get_control_db),
 ):
-    _require_admin(request)
+    _require_protected_approver(db, request, entity_id)
     if db.get(ArkEntity, entity_id) is None or db.get(ApiToken, data.token_id) is None:
         raise HTTPException(status_code=404, detail="Entity or token not found")
     row = (
@@ -551,6 +722,21 @@ def list_evidence(
             "status": row.status,
             "quarantine_reason": row.quarantine_reason,
             "modified_at": row.modified_at.isoformat() if row.modified_at else None,
+            "facts": [
+                {
+                    "id": fact.id,
+                    "key": fact.fact_key,
+                    "value": fact.value,
+                    "confidence": float(fact.confidence),
+                    "locator": fact.locator,
+                    "status": fact.status,
+                    "source_hash": fact.source_hash,
+                }
+                for fact in db.query(ArkEvidenceFact)
+                .filter_by(evidence_id=row.id)
+                .order_by(ArkEvidenceFact.fact_key)
+                .all()
+            ],
         }
         for row in rows
     ]
@@ -565,7 +751,7 @@ def scan_evidence(
     if entity is None:
         raise HTTPException(status_code=404, detail="Entity not found")
     try:
-        return scan_entity_files(db, entity)
+        return scan_and_extract_entity(db, entity)
     except (OSError, ValueError) as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
@@ -587,10 +773,24 @@ def review_evidence(
             detail="Evidence must have a content hash before verification",
         )
     evidence.status = data.status
-    evidence.extracted_text_hash = data.extracted_text_hash
-    evidence.extractor_version = data.extractor_version
+    if data.extracted_text_hash is not None:
+        evidence.extracted_text_hash = data.extracted_text_hash
+    if data.extractor_version is not None:
+        evidence.extractor_version = data.extractor_version
     evidence.reviewed_by = reviewer
     evidence.reviewed_at = _now()
+    facts = (
+        db.query(ArkEvidenceFact)
+        .filter(
+            ArkEvidenceFact.evidence_id == evidence.id,
+            ArkEvidenceFact.source_hash == evidence.content_hash,
+        )
+        .all()
+    )
+    for fact in facts:
+        fact.status = data.status
+        fact.reviewed_by = reviewer
+        fact.reviewed_at = evidence.reviewed_at
     db.commit()
     return {"id": evidence.id, "status": evidence.status, "reviewed_by": reviewer}
 
@@ -715,6 +915,36 @@ def record_agent_decision(
     row.evidence_hash = evidence.content_hash
     row.rationale_hash = sha256(data.rationale.encode("utf-8")).hexdigest()
     row.created_at = _now()
+    context_hash = sha256(
+        json.dumps(
+            {
+                "candidate_id": candidate.id,
+                "evidence_hash": evidence.content_hash,
+                "role": data.agent_role,
+                "policy_version": POLICY_VERSION,
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    response_hash = sha256(
+        json.dumps(data.model_dump(mode="json"), sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    db.add(
+        ArkAgentDecisionRun(
+            candidate_id=candidate.id,
+            agent_role=data.agent_role,
+            model_id=grant.model_id,
+            model_family=grant.model_family,
+            prompt_version=grant.prompt_version,
+            policy_version=POLICY_VERSION,
+            confidence=data.confidence,
+            decision=data.decision,
+            evidence_hash=evidence.content_hash,
+            context_hash=context_hash,
+            rationale_hash=row.rationale_hash,
+            response_hash=response_hash,
+        )
+    )
     candidate.status = "reviewing"
     db.commit()
     return _candidate_out(db, candidate)
@@ -728,6 +958,80 @@ def _candidate_and_access(
         raise HTTPException(status_code=404, detail="Candidate not found")
     _require_entity_access(db, request, candidate.entity_id, write=True)
     return candidate
+
+
+@router.post("/candidates/{candidate_id}/controller-run")
+def run_controller_review(
+    candidate_id: int,
+    request: Request,
+    control_db: Session = Depends(get_control_db),
+    ledger_db: Session = Depends(get_db),
+):
+    candidate = _candidate_and_access(candidate_id, request, control_db)
+    entity = control_db.get(ArkEntity, candidate.entity_id)
+    if entity is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    if entity_mode_enabled() and ledger_db.bind.url.database != entity.database_name:
+        raise HTTPException(
+            status_code=409, detail="Activate the candidate's entity before agent review"
+        )
+    result = run_candidate_review(control_db, ledger_db, candidate)
+    if result["status"] == "blocked":
+        raise HTTPException(status_code=409, detail=result)
+    return result
+
+
+@router.get("/entities/{entity_id}/controller-runs")
+def list_controller_runs(
+    entity_id: int,
+    request: Request,
+    db: Session = Depends(get_control_db),
+):
+    if db.get(ArkEntity, entity_id) is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    _require_entity_access(db, request, entity_id)
+    runs = (
+        db.query(ArkControllerRun)
+        .filter_by(entity_id=entity_id)
+        .order_by(ArkControllerRun.id.desc())
+        .limit(100)
+        .all()
+    )
+    issues = (
+        db.query(ArkControllerIssue)
+        .filter_by(entity_id=entity_id)
+        .order_by(ArkControllerIssue.id.desc())
+        .limit(250)
+        .all()
+    )
+    return {
+        "runs": [
+            {
+                "id": row.id,
+                "run_type": row.run_type,
+                "status": row.status,
+                "policy_version": row.policy_version,
+                "summary": row.summary,
+                "error_code": row.error_code,
+                "started_at": row.started_at.isoformat(),
+                "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+            }
+            for row in runs
+        ],
+        "issues": [
+            {
+                "id": row.id,
+                "run_id": row.run_id,
+                "category": row.category,
+                "severity": row.severity,
+                "status": row.status,
+                "title": row.title,
+                "detail": row.detail,
+                "due_date": row.due_date.isoformat() if row.due_date else None,
+            }
+            for row in issues
+        ],
+    }
 
 
 @router.post("/candidates/{candidate_id}/evaluate")
@@ -763,15 +1067,19 @@ def post_candidate(
         )
 
     if ledger_db.bind.dialect.name == "postgresql":
-        # One posting attempt per candidate across all app workers. The lock is
-        # held by the ledger transaction and releases on commit or rollback.
+        # One posting attempt per evidence item across all app workers. The
+        # ledger commit occurs before this lock releases, so a concurrent
+        # candidate sees the existing source record instead of double-posting.
         ledger_db.execute(
-            text("SELECT pg_advisory_xact_lock(:candidate_id)"),
-            {"candidate_id": candidate.id},
+            text("SELECT pg_advisory_xact_lock(:evidence_id)"),
+            {"evidence_id": candidate.evidence_id},
         )
     existing = (
         ledger_db.query(Transaction)
-        .filter_by(source_type="arkcpa_agent", source_id=candidate.id)
+        .filter_by(
+            source_type=ARKCPA_LEDGER_SOURCE_TYPE,
+            source_id=candidate.evidence_id,
+        )
         .first()
     )
     if existing is not None:
@@ -799,8 +1107,8 @@ def post_candidate(
             candidate.transaction_date,
             candidate.description,
             candidate.lines,
-            source_type="arkcpa_agent",
-            source_id=candidate.id,
+            source_type=ARKCPA_LEDGER_SOURCE_TYPE,
+            source_id=candidate.evidence_id,
             reference=candidate.reference,
         )
         ledger_db.commit()
@@ -849,6 +1157,9 @@ def list_obligations(
 def list_protected_actions(request: Request, db: Session = Depends(get_control_db)):
     entities = list_entities(request, db)
     ids = [row["id"] for row in entities]
+    approver_ids = {
+        row["id"] for row in entities if row.get("protected_approver") is True
+    }
     if not ids:
         return []
     rows = (
@@ -868,6 +1179,200 @@ def list_protected_actions(request: Request, db: Session = Depends(get_control_d
             "reason": row.reason,
             "requested_by": row.requested_by,
             "approved_by": row.approved_by,
+            "approval_note": row.approval_note,
+            "approved_at": row.approved_at.isoformat() if row.approved_at else None,
+            "can_approve": row.entity_id in approver_ids and row.status == "required",
         }
         for row in rows
     ]
+
+
+@router.put("/protected-actions/{action_id}/decision")
+def decide_protected_action(
+    action_id: int,
+    data: ProtectedDecisionIn,
+    request: Request,
+    db: Session = Depends(get_control_db),
+):
+    action = db.get(ArkProtectedAction, action_id)
+    if action is None:
+        raise HTTPException(status_code=404, detail="Protected action not found")
+    approver = _require_protected_approver(db, request, action.entity_id)
+    if action.status != "required":
+        raise HTTPException(status_code=409, detail="Protected action already decided")
+    action.status = data.decision
+    action.approved_by = approver
+    action.approved_at = _now()
+    action.approval_note = data.note.strip()
+    action.decision_hash = sha256(
+        json.dumps(
+            {
+                "action_id": action.id,
+                "entity_id": action.entity_id,
+                "decision": data.decision,
+                "note": action.approval_note,
+                "approver": approver,
+            },
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+    db.commit()
+    return {
+        "id": action.id,
+        "status": action.status,
+        "approved_by": action.approved_by,
+        "approved_at": action.approved_at.isoformat(),
+        "decision_hash": action.decision_hash,
+        "execution_performed": False,
+    }
+
+
+@router.get("/authority-sources")
+def list_authority_sources(request: Request, db: Session = Depends(get_control_db)):
+    name = _require_human(request)
+    membership = (
+        db.query(ArkEntityAccess.id)
+        .join(User, User.id == ArkEntityAccess.user_id)
+        .filter(User.username == name, User.is_active)
+        .first()
+    )
+    if membership is None:
+        raise HTTPException(status_code=403, detail="Ark CPA entity access required")
+    seed_authority_sources(db)
+    sources = db.query(ArkAuthoritySource).order_by(ArkAuthoritySource.code).all()
+    proposals = db.query(ArkRuleProposal).order_by(ArkRuleProposal.id.desc()).limit(250).all()
+    return {
+        "automatic_policy_change": False,
+        "sources": [
+            {
+                "id": row.id,
+                "code": row.code,
+                "title": row.title,
+                "jurisdiction": row.jurisdiction,
+                "authority_level": row.authority_level,
+                "url": row.url,
+                "enabled": row.enabled,
+                "last_checked_at": row.last_checked_at.isoformat()
+                if row.last_checked_at
+                else None,
+                "current_hash": (
+                    db.query(ArkSourceSnapshot.content_hash)
+                    .filter_by(source_id=row.id, status="current")
+                    .order_by(ArkSourceSnapshot.retrieved_at.desc())
+                    .scalar()
+                ),
+            }
+            for row in sources
+        ],
+        "proposals": [
+            {
+                "id": row.id,
+                "code": row.code,
+                "title": row.title,
+                "status": row.status,
+                "proposed_change": row.proposed_change,
+                "test_results": row.test_results,
+                "approved_by": row.approved_by,
+            }
+            for row in proposals
+        ],
+    }
+
+
+@router.post("/authority-sources/refresh")
+def refresh_authority_source_registry(
+    request: Request, db: Session = Depends(get_control_db)
+):
+    requested_by = _require_any_protected_approver(db, request)
+    return {
+        "requested_by": requested_by,
+        "automatic_policy_change": False,
+        "results": refresh_all_authority_sources(db),
+    }
+
+
+@router.get("/entities/{entity_id}/workpapers")
+def list_workpapers(
+    entity_id: int, request: Request, db: Session = Depends(get_control_db)
+):
+    if db.get(ArkEntity, entity_id) is None:
+        raise HTTPException(status_code=404, detail="Entity not found")
+    _require_entity_access(db, request, entity_id)
+    rows = (
+        db.query(ArkWorkpaperPackage)
+        .filter_by(entity_id=entity_id)
+        .order_by(ArkWorkpaperPackage.id.desc())
+        .all()
+    )
+    return [
+        {
+            "id": row.id,
+            "obligation_id": row.obligation_id,
+            "tax_year": row.tax_year,
+            "status": row.status,
+            "manifest": row.manifest,
+            "package_hash": row.package_hash,
+            "disclaimer": row.disclaimer,
+            "created_by": row.created_by,
+            "approved_by": row.approved_by,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/entities/{entity_id}/workpapers", status_code=201)
+def create_workpaper(
+    entity_id: int,
+    data: WorkpaperCreate,
+    request: Request,
+    db: Session = Depends(get_control_db),
+):
+    creator = _require_entity_access(db, request, entity_id, write=True)
+    if data.obligation_id is not None:
+        obligation = db.get(ArkComplianceObligation, data.obligation_id)
+        if obligation is None or obligation.entity_id != entity_id:
+            raise HTTPException(status_code=404, detail="Obligation not found for entity")
+    evidence = (
+        db.query(ArkEvidence)
+        .filter(ArkEvidence.id.in_(data.evidence_ids or [-1]))
+        .order_by(ArkEvidence.id)
+        .all()
+    )
+    if len(evidence) != len(set(data.evidence_ids)) or any(
+        row.entity_id != entity_id or row.status != "verified" or not row.content_hash
+        for row in evidence
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="Workpapers may contain only verified evidence from this entity",
+        )
+    manifest = {
+        "entity_id": entity_id,
+        "obligation_id": data.obligation_id,
+        "tax_year": data.tax_year,
+        "evidence": [
+            {"id": row.id, "sha256": row.content_hash, "source_path": row.source_path}
+            for row in evidence
+        ],
+        "submission_performed": False,
+    }
+    package_hash = sha256(
+        json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    row = ArkWorkpaperPackage(
+        entity_id=entity_id,
+        obligation_id=data.obligation_id,
+        tax_year=data.tax_year,
+        status="draft",
+        manifest=manifest,
+        package_hash=package_hash,
+        created_by=creator,
+    )
+    db.add(row)
+    db.commit()
+    return {
+        "id": row.id,
+        "status": row.status,
+        "package_hash": row.package_hash,
+        "submission_performed": False,
+    }

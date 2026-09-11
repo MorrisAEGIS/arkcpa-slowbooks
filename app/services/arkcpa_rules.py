@@ -5,8 +5,10 @@ outputs remain reviewable workpapers until a human signs and submits them.
 """
 
 from datetime import date
+import json
+import re
 
-POLICY_VERSION = "arkcpa-policy-2026-09-10.1"
+POLICY_VERSION = "arkcpa-policy-2026-09-10.2"
 MIN_AUTONOMOUS_CONFIDENCE = 0.98
 
 ENTITY_TYPES = {
@@ -47,6 +49,21 @@ PROTECTED_ACTIONS = {
 }
 
 ORDINARY_ACTION = "ordinary_entry"
+
+SENSITIVE_PROFILE_KEY_PARTS = {
+    "sin",
+    "ssn",
+    "ein",
+    "taxid",
+    "taxnumber",
+    "accountnumber",
+    "routingnumber",
+    "password",
+    "secret",
+    "token",
+    "email",
+    "address",
+}
 
 OBLIGATION_PACKS = {
     "ca_personal": (
@@ -121,3 +138,31 @@ def obligations_for(entity_type: str, tax_year: int | None = None) -> list[dict]
 
 def is_protected_action(action_type: str) -> bool:
     return action_type in PROTECTED_ACTIONS
+
+
+def validate_entity_profile(profile: dict) -> dict:
+    """Reject identifiers and secrets from the non-sensitive facts profile."""
+    if not isinstance(profile, dict):
+        raise ValueError("Entity profile must be an object")
+
+    def walk(value, depth: int = 0) -> None:
+        if depth > 5:
+            raise ValueError("Entity profile nesting is too deep")
+        if isinstance(value, dict):
+            for key, child in value.items():
+                normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
+                if any(part in normalized for part in SENSITIVE_PROFILE_KEY_PARTS):
+                    raise ValueError(f"Sensitive entity profile field is forbidden: {key}")
+                walk(child, depth + 1)
+        elif isinstance(value, list):
+            if len(value) > 100:
+                raise ValueError("Entity profile list is too large")
+            for child in value:
+                walk(child, depth + 1)
+        elif not isinstance(value, (str, int, float, bool, type(None))):
+            raise ValueError("Entity profile values must be JSON scalars")
+
+    walk(profile)
+    if len(json.dumps(profile, sort_keys=True)) > 20000:
+        raise ValueError("Entity profile is too large")
+    return profile
