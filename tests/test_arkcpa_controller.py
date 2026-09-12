@@ -265,7 +265,7 @@ def test_governed_prompt_names_every_required_decision_key():
     assert '"fields"' in prompt
 
 
-def test_gpt_oss_bookkeeper_requests_use_zero_thinking_budget():
+def test_gpt_oss_bookkeeper_requests_use_strict_json_without_reasoning():
     requests = []
     decision = {
         "decision": "reject",
@@ -312,6 +312,10 @@ def test_gpt_oss_bookkeeper_requests_use_zero_thinking_budget():
 
     assert [request["thinking_budget_tokens"] for request in requests] == [0, 0]
     assert [request["reasoning_format"] for request in requests] == ["none", "none"]
+    assert [request["response_format"] for request in requests] == [
+        {"type": "json_object"},
+        {"type": "json_object"},
+    ]
 
 
 def test_controller_default_uses_independent_max_context_route(monkeypatch):
