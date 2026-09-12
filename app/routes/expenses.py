@@ -15,6 +15,7 @@ from app.models.contacts import Vendor
 from app.models.transactions import Transaction
 from app.schemas.expenses import ExpenseCreate, ExpenseResponse
 from app.services.accounting import create_journal_entry, reversing_lines
+from app.services.bank_posting import assert_not_reconciled, release_statement_links
 from app.services.closing_date import check_closing_date
 
 router = APIRouter(prefix="/api/expenses", tags=["expenses"])
@@ -113,6 +114,7 @@ def void_expense(expense_id: int, db: Session = Depends(get_db)):
     if txn.id in _void_ids(db, [txn.id]):
         raise HTTPException(status_code=400, detail="Expense is already void")
 
+    assert_not_reconciled(txn)
     check_closing_date(db, txn.date)
 
     create_journal_entry(
@@ -126,6 +128,7 @@ def void_expense(expense_id: int, db: Session = Depends(get_db)):
         class_id=txn.class_id,
         job_id=txn.job_id,
     )
+    release_statement_links(db, txn)
     db.commit()
     db.refresh(txn)
     return _serialize(txn, db, True)

@@ -263,3 +263,81 @@ def test_dmg_contents_check_fails_when_bundle_is_missing(monkeypatch, tmp_path):
             dmg, tmp_path / "ev.txt", tmp_path, "Missing.app"
         )
     assert calls[-1][:2] == ("hdiutil", "detach")
+
+
+# --- testing-repo #28: retry Apple's timestamp service, nothing else ---------
+
+
+class _Fail(Exception):
+    pass
+
+
+def _cpe(stderr):
+    import subprocess
+
+    return subprocess.CalledProcessError(1, ("codesign",), output="", stderr=stderr)
+
+
+def test_timestamp_failure_is_retried_then_succeeds(monkeypatch):
+    calls = []
+    slept = []
+    answers = [
+        _cpe("x.dmg: A timestamp was expected but was not found.\n"),
+        _cpe("x.dmg: A timestamp was expected but was not found.\n"),
+        "ok",
+    ]
+
+    def fake_run(*args):
+        calls.append(args)
+        a = answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+
+    monkeypatch.setattr(release, "_run", fake_run)
+    monkeypatch.setattr(release, "_sleep", lambda s: slept.append(s))
+    assert release._run_signing("codesign", "--timestamp", "x.dmg") == "ok"
+    assert len(calls) == 3
+    assert slept == [30, 60]
+
+
+def test_other_signing_failures_surface_on_the_first_try(monkeypatch):
+    import subprocess
+
+    calls = []
+
+    def fake_run(*args):
+        calls.append(args)
+        raise _cpe("x.dmg: code object is not signed at all\n")
+
+    monkeypatch.setattr(release, "_run", fake_run)
+    monkeypatch.setattr(
+        release, "_sleep", lambda s: (_ for _ in ()).throw(AssertionError("no sleep"))
+    )
+    with pytest.raises(subprocess.CalledProcessError):
+        release._run_signing("codesign", "--timestamp", "x.dmg")
+    assert len(calls) == 1
+
+
+def test_timestamp_failure_gives_up_after_three(monkeypatch):
+    import subprocess
+
+    calls = []
+
+    def fake_run(*args):
+        calls.append(args)
+        raise _cpe("A timestamp was expected but was not found")
+
+    monkeypatch.setattr(release, "_run", fake_run)
+    monkeypatch.setattr(release, "_sleep", lambda s: None)
+    with pytest.raises(subprocess.CalledProcessError):
+        release._run_signing("codesign", "--timestamp", "x.dmg")
+    assert len(calls) == 3
+
+
+def test_sign_and_dmg_codesign_go_through_the_retry():
+    src = (MACOS_DIR / "release.py").read_text(encoding="utf-8")
+    body = src.split("def _sign(")[1].split("def _sign_app(")[0]
+    assert "_run_signing(*command)" in body
+    dmg = src.split('f"{BUNDLE_ID}.dmg"')[0]
+    assert dmg.rstrip().endswith('"--identifier",') and "_run_signing(" in dmg[-400:]

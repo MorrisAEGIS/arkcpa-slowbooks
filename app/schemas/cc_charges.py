@@ -10,6 +10,8 @@ class CCChargeCreate(StrictModel):
     date: dt_date
     payee: Optional[str] = None
     account_id: int
+    # the card (a liability account; default 2100 Credit Card)
+    card_account_id: Optional[int] = None
     amount: Decimal
     memo: Optional[str] = None
     reference: Optional[str] = None

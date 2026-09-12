@@ -181,7 +181,7 @@ def test_token_settings_writes_are_otherwise_unaffected(client):
 # ---------------------------------------------------------------------------
 
 
-def test_invoice_email_does_not_raise_typeerror(client, seed_customer):
+def test_invoice_email_does_not_raise_typeerror(client, seed_customer, seed_accounts):
     inv = client.post(
         "/api/invoices",
         json={

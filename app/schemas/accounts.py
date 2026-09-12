@@ -2,10 +2,14 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
+from typing import Literal
+
 from pydantic import BaseModel, field_validator
 from app.schemas.common import StrictModel
 
 from app.models.accounts import AccountType
+
+BankKind = Literal["bank", "credit_card"]
 
 
 class AccountCreate(StrictModel):
@@ -14,6 +18,7 @@ class AccountCreate(StrictModel):
     account_type: AccountType
     parent_id: Optional[int] = None
     description: Optional[str] = None
+    bank_kind: Optional[BankKind] = None
 
     @field_validator("account_number")
     @classmethod
@@ -29,6 +34,7 @@ class AccountUpdate(StrictModel):
     parent_id: Optional[int] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    bank_kind: Optional[BankKind] = None
 
     @field_validator("account_number")
     @classmethod
@@ -45,6 +51,7 @@ class AccountResponse(BaseModel):
     description: Optional[str]
     is_active: bool
     is_system: bool
+    bank_kind: Optional[str] = None
     balance: Decimal
     created_at: datetime
 

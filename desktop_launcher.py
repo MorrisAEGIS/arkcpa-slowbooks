@@ -444,9 +444,20 @@ def _server_already_running(port: int) -> bool:
 
 
 def launch_company(
-    filename: str, port: int, output=None, bind_host: str = "127.0.0.1"
+    filename: str,
+    port: int,
+    output=None,
+    bind_host: str = "127.0.0.1",
+    persist: bool = True,
 ) -> subprocess.Popen:
-    """Point the app at a company file, migrate it, and start the server."""
+    """Point the app at a company file, migrate it, and start the server.
+
+    ``persist`` records the choice as the desktop app's state (.env
+    DATABASE_URL + last-opened) — right for the windowed picker, wrong for
+    a headless --serve-lan / --no-window run, which would otherwise repoint
+    the next windowed launch (issue #110). The server itself takes its
+    DATABASE_URL from the environment start_server() builds, so nothing
+    needs the file."""
     from app.services import company_service
 
     # A second launch while the app is already open would lose the fight
@@ -463,8 +474,9 @@ def launch_company(
         raise ValueError(f"Invalid company file name: {filename!r}")
 
     db_url = "sqlite:///" + db_path.as_posix()
-    set_env_value("DATABASE_URL", db_url)
-    company_service.set_last_opened(filename)
+    if persist:
+        set_env_value("DATABASE_URL", db_url)
+        company_service.set_last_opened(filename)
 
     migrate(db_url, output=output)
 
@@ -1213,7 +1225,7 @@ def run_headless(port: int, bind_host: str = "127.0.0.1") -> int:
 
     print(f"Opening company file: {filename}")
     try:
-        proc = launch_company(filename, port, bind_host=bind_host)
+        proc = launch_company(filename, port, bind_host=bind_host, persist=False)
     except (ValueError, RuntimeError, subprocess.CalledProcessError) as exc:
         print(f"ERROR: {exc}")
         return 1
@@ -1328,7 +1340,7 @@ def run_smoke_test(port: int = 3999) -> int:
     # Pipe the server child's output into our own (the log file when
     # frozen) — a crashing uvicorn child is otherwise completely silent.
     child_out = sys.stdout if hasattr(sys.stdout, "fileno") else None
-    proc = launch_company(filename, port, output=child_out)
+    proc = launch_company(filename, port, output=child_out, persist=False)
     try:
         with urllib.request.urlopen(
             f"http://127.0.0.1:{port}/health", timeout=5

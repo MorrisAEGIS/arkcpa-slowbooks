@@ -13,7 +13,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_control_db
 from app.models.preferences import UserPreference
 
 router = APIRouter(prefix="/api/preferences", tags=["preferences"])
@@ -37,7 +37,7 @@ def _check_key(key: str):
 
 
 @router.get("/{key}")
-def get_preference(key: str, request: Request, db: Session = Depends(get_db)):
+def get_preference(key: str, request: Request, db: Session = Depends(get_control_db)):
     _check_key(key)
     row = (
         db.query(UserPreference)
@@ -55,7 +55,7 @@ def get_preference(key: str, request: Request, db: Session = Depends(get_db)):
 
 @router.put("/{key}")
 def put_preference(
-    key: str, payload: dict, request: Request, db: Session = Depends(get_db)
+    key: str, payload: dict, request: Request, db: Session = Depends(get_control_db)
 ):
     _check_key(key)
     value = payload.get("value") if isinstance(payload, dict) else None
@@ -79,7 +79,9 @@ def put_preference(
 
 
 @router.delete("/{key}")
-def delete_preference(key: str, request: Request, db: Session = Depends(get_db)):
+def delete_preference(
+    key: str, request: Request, db: Session = Depends(get_control_db)
+):
     """Back to the default for this user."""
     _check_key(key)
     db.query(UserPreference).filter(

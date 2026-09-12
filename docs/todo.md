@@ -20,7 +20,6 @@ silently.
 **Priority — financial integrity (test these first):**
 - `app/models/credit_memos.py` — reversing journal entries, balance math
 - `app/models/recurring.py` — schedule generation, next-occurrence math
-- `app/models/banking.py` — reconciliation state, bank-transaction matching
 - `app/models/deductions.py` — pre/post-tax classification affects pay-run math
 - `app/models/purchase_orders.py` — convert-to-bill workflow
 

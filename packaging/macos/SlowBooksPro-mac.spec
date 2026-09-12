@@ -123,6 +123,25 @@ coll = COLLECT(
     name="SlowBooksPro",
 )
 
+def _build_sha() -> str:
+    sha = os.environ.get("APP_BUILD_SHA", "").strip()
+    if not sha:
+        try:
+            import subprocess
+
+            sha = subprocess.run(
+                ["git", "-C", ROOT, "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=True,
+            ).stdout.strip()
+        except Exception:
+            sha = ""
+    return sha[:12] or "unknown"
+
+
+def _bundle_version() -> str:
+    return f"{os.environ.get('APP_VERSION', '0.0.0')}+{_build_sha()}"
+
+
 app = BUNDLE(
     coll,
     name="SlowBooks Pro.app",
@@ -130,7 +149,11 @@ app = BUNDLE(
     bundle_identifier="com.vonholtencodes.slowbookspro",
     info_plist={
         "CFBundleShortVersionString": os.environ.get("APP_VERSION", "0.0.0"),
-        "CFBundleVersion": os.environ.get("APP_VERSION", "0.0.0"),
+        # Build identity (testing-repo #28): two builds of one release must
+        # be distinguishable from the bundle alone. CI passes APP_BUILD_SHA;
+        # a local build reads the checkout. The workflow refuses a bundle
+        # whose CFBundleVersion is just the short version.
+        "CFBundleVersion": _bundle_version(),
         "LSMinimumSystemVersion": "14.0",
         "LSArchitecturePriority": ["arm64"],
         "NSHighResolutionCapable": True,

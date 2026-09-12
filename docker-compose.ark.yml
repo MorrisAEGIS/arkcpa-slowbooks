@@ -1,0 +1,152 @@
+name: ${COMPOSE_PROJECT_NAME:-arkcpa-slowbooks}
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    command:
+      - postgres
+      - -c
+      - shared_buffers=256MB
+      - -c
+      - effective_cache_size=1GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=64MB
+      - -c
+      - max_connections=100
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?missing POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?missing POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?missing POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  slowbooks:
+    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.10.1-ark-controller}
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      APP_HOST: "0.0.0.0"
+      APP_PORT: "3001"
+      APP_DEBUG: "false"
+      APP_WORKERS: ${APP_WORKERS:-2}
+      SLOWBOOKS_PRIVATE_NETWORK: "1"
+      FORCE_HTTPS: "true"
+      FORWARDED_ALLOW_IPS: "*"
+      TRUST_PROXY_HEADERS: "true"
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS}
+      SESSION_IDLE_TIMEOUT_SECONDS: ${SESSION_IDLE_TIMEOUT_SECONDS:-14400}
+      AUTHENTIK_OIDC_ENABLED: ${AUTHENTIK_OIDC_ENABLED:-false}
+      AUTHENTIK_OIDC_ISSUER: ${AUTHENTIK_OIDC_ISSUER:-}
+      AUTHENTIK_OIDC_CLIENT_ID: ${AUTHENTIK_OIDC_CLIENT_ID:-}
+      AUTHENTIK_OIDC_CLIENT_SECRET: ${AUTHENTIK_OIDC_CLIENT_SECRET:-}
+      AUTHENTIK_OIDC_REDIRECT_URI: ${AUTHENTIK_OIDC_REDIRECT_URI:-}
+      AUTHENTIK_OIDC_SCOPES: ${AUTHENTIK_OIDC_SCOPES:-openid profile email}
+      AUTHENTIK_OIDC_REQUIRED_GROUP: ${AUTHENTIK_OIDC_REQUIRED_GROUP:-}
+      AUTHENTIK_OIDC_BOOTSTRAP_EMAIL: ${AUTHENTIK_OIDC_BOOTSTRAP_EMAIL:-}
+      ARKCPA_WORKSPACE_ID: ${ARKCPA_WORKSPACE_ID:-private}
+      ARKCPA_WORKSPACE_LABEL: ${ARKCPA_WORKSPACE_LABEL:-Private books}
+      ARKCPA_PUBLIC_HOSTNAME: ${ARKCPA_PUBLIC_HOSTNAME:-arkcpa.magaenergy.ai}
+      ARKCPA_ENTITY_MODE: ${ARKCPA_ENTITY_MODE:-true}
+      ARK_FILES_ROOT: /ark-files
+      ARKCPA_MAX_EVIDENCE_BYTES: ${ARKCPA_MAX_EVIDENCE_BYTES:-52428800}
+      ARKCPA_MAX_SCAN_FILES: ${ARKCPA_MAX_SCAN_FILES:-10000}
+      ARKCPA_AI_BASE_URL: ${ARKCPA_AI_BASE_URL:-}
+      ARKCPA_AI_API_KEY: ${ARKCPA_AI_API_KEY:-}
+      ARKCPA_AI_ALLOWED_HOSTS: ${ARKCPA_AI_ALLOWED_HOSTS:-litellm,host.docker.internal,127.0.0.1,localhost}
+      ARKCPA_BOOKKEEPER_MODEL: ${ARKCPA_BOOKKEEPER_MODEL:-ark-coder-oss}
+      ARKCPA_BOOKKEEPER_FAMILY: ${ARKCPA_BOOKKEEPER_FAMILY:-gpt-oss}
+      ARKCPA_CONTROLLER_MODEL: ${ARKCPA_CONTROLLER_MODEL:-ark-brain-max}
+      ARKCPA_CONTROLLER_FAMILY: ${ARKCPA_CONTROLLER_FAMILY:-nemotron3-super}
+      ARKCPA_REQUIRE_GATEWAY_FAMILY_PROOF: ${ARKCPA_REQUIRE_GATEWAY_FAMILY_PROOF:-true}
+      RATE_LIMIT_ENABLED: "1"
+      PAYROLL_ENCRYPTION_SECRET: ${PAYROLL_ENCRYPTION_SECRET:?missing PAYROLL_ENCRYPTION_SECRET}
+      SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:?missing SESSION_SECRET_KEY}
+      SETTINGS_ENCRYPTION_KEY: ${SETTINGS_ENCRYPTION_KEY:?missing SETTINGS_ENCRYPTION_KEY}
+      COMPANY_NAME: ${COMPANY_NAME:-My Company}
+      EMPLOYER_STATE: ${EMPLOYER_STATE:-WA}
+      SUTA_RATE: ${SUTA_RATE:-0.012}
+    ports:
+      - "127.0.0.1:${APP_PUBLISH_PORT:?missing APP_PUBLISH_PORT}:3001"
+    volumes:
+      - slowbooks_uploads:/app/app/static/uploads
+      - slowbooks_backups:/app/backups
+      - ${ARK_FILES_ROOT_HOST:-/home/novaadmin/ark-files}:/ark-files:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request,sys;
+          req=urllib.request.Request('http://127.0.0.1:3001/health',headers={'Host':'${ARKCPA_PUBLIC_HOSTNAME:-arkcpa.magaenergy.ai}','X-Forwarded-Proto':'https'});
+          sys.exit(0) if urllib.request.urlopen(req,timeout=3).status==200 else sys.exit(1)
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+      retries: 4
+
+  controller-worker:
+    profiles: ["controller"]
+    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.10.1-ark-controller}
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      slowbooks:
+        condition: service_healthy
+    entrypoint: ["python", "scripts/run_arkcpa_controller.py"]
+    command:
+      - --apply
+      - --loop
+      - --mode
+      - daily
+      - --interval
+      - ${ARKCPA_CONTROLLER_INTERVAL_SECONDS:-900}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      ARKCPA_ENTITY_MODE: "true"
+      ARK_FILES_ROOT: /ark-files
+      ARKCPA_MAX_EVIDENCE_BYTES: ${ARKCPA_MAX_EVIDENCE_BYTES:-52428800}
+      ARKCPA_MAX_SCAN_FILES: ${ARKCPA_MAX_SCAN_FILES:-10000}
+      ARKCPA_CONTROLLER_INTERVAL_SECONDS: ${ARKCPA_CONTROLLER_INTERVAL_SECONDS:-900}
+      ARKCPA_CONTROLLER_MAX_CANDIDATES: ${ARKCPA_CONTROLLER_MAX_CANDIDATES:-25}
+      ARKCPA_AI_BASE_URL: ${ARKCPA_AI_BASE_URL:-}
+      ARKCPA_AI_API_KEY: ${ARKCPA_AI_API_KEY:-}
+      ARKCPA_AI_ALLOWED_HOSTS: ${ARKCPA_AI_ALLOWED_HOSTS:-litellm,host.docker.internal,127.0.0.1,localhost}
+      ARKCPA_BOOKKEEPER_MODEL: ${ARKCPA_BOOKKEEPER_MODEL:-ark-coder-oss}
+      ARKCPA_BOOKKEEPER_FAMILY: ${ARKCPA_BOOKKEEPER_FAMILY:-gpt-oss}
+      ARKCPA_CONTROLLER_MODEL: ${ARKCPA_CONTROLLER_MODEL:-ark-brain-max}
+      ARKCPA_CONTROLLER_FAMILY: ${ARKCPA_CONTROLLER_FAMILY:-nemotron3-super}
+      ARKCPA_REQUIRE_GATEWAY_FAMILY_PROOF: ${ARKCPA_REQUIRE_GATEWAY_FAMILY_PROOF:-true}
+      ARKCPA_CONTROLLER_ALLOW_POSTING: ${ARKCPA_CONTROLLER_ALLOW_POSTING:-false}
+      ARKCPA_CONTROLLER_REFRESH_TAX: ${ARKCPA_CONTROLLER_REFRESH_TAX:-false}
+    volumes:
+      - ${ARK_FILES_ROOT_HOST:-/home/novaadmin/ark-files}:/ark-files:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      disable: true
+
+volumes:
+  postgres_data:
+  slowbooks_uploads:
+  slowbooks_backups:

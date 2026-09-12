@@ -26,8 +26,12 @@ Synced transactions land in the same review flow as OFX/CSV imports:
 - **Duplicates are skipped automatically** (dedup on the bridge's stable
   transaction id, same mechanism as OFX FITIDs) — syncing twice never
   double-imports.
-- **Bank rules apply on arrival** — anything your rules match is
-  auto-categorized, the rest waits in the register as unmatched.
+- **Matches are found on arrival** — a line whose amount the ledger already
+  has (same side, within five days) is linked to that posting and cleared.
+- **Bank rules apply on arrival** — anything your rules match gets a suggested
+  category. Nothing posts by itself: the account's *To review* list is where
+  you **Add** a line (posts it with the category), **Match** it, or **Exclude**
+  it; *Add all categorised* posts the rule-suggested ones in one click.
 - Pending transactions are ignored until they post (their ids aren't
   stable before that).
 

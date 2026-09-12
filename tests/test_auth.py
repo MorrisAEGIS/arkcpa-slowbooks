@@ -51,6 +51,22 @@ def test_login_accepts_correct_password(unauthed_client):
     assert r.json()["authenticated"] is True
 
 
+def test_local_login_status_reports_provisioned_email(unauthed_client, db_session):
+    unauthed_client.post("/api/auth/setup", json={"password": "hunter2hunter"})
+    from app.models.users import User
+
+    admin = db_session.query(User).filter(User.username == "admin").one()
+    admin.email = "jay@example.com"
+    db_session.commit()
+    unauthed_client.post("/api/auth/logout")
+
+    login = unauthed_client.post("/api/auth/login", json={"password": "hunter2hunter"})
+    assert login.status_code == 200
+    assert unauthed_client.get("/api/auth/status").json()["user"]["email"] == (
+        "jay@example.com"
+    )
+
+
 def test_login_before_setup_returns_409(unauthed_client):
     r = unauthed_client.post("/api/auth/login", json={"password": "whatever"})
     assert r.status_code == 409

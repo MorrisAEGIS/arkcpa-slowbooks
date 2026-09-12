@@ -86,6 +86,11 @@ class TransactionLine(Base):
     billed_invoice_line_id = Column(
         Integer, ForeignKey("invoice_lines.id"), nullable=True
     )
+    # Bank register: a line on a bank/credit-card account is "cleared" when
+    # it matches a statement line or was ticked in a reconciliation, and it
+    # carries the reconciliation that closed it (then it can't be voided).
+    cleared = Column(Boolean, nullable=False, default=False)
+    reconciliation_id = Column(Integer, ForeignKey("reconciliations.id"), nullable=True)
 
     transaction = relationship("Transaction", back_populates="lines")
     account = relationship("Account", back_populates="transaction_lines")

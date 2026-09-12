@@ -13,6 +13,7 @@ from app.models.transactions import Transaction
 from app.models.accounts import Account
 from app.schemas.journal import JournalEntryCreate, JournalEntryResponse
 from app.services.accounting import create_journal_entry, reversing_lines
+from app.services.bank_posting import assert_not_reconciled, release_statement_links
 from app.services.closing_date import check_closing_date
 
 router = APIRouter(prefix="/api/journal", tags=["journal"])
@@ -149,6 +150,7 @@ def void_journal_entry(entry_id: int, db: Session = Depends(get_db)):
     if txn.source_type and txn.source_type.endswith("_void"):
         raise HTTPException(status_code=400, detail="Cannot void a reversal entry")
 
+    assert_not_reconciled(txn)
     check_closing_date(db, txn.date)
 
     reverse_lines = reversing_lines(txn.lines)
@@ -164,6 +166,7 @@ def void_journal_entry(entry_id: int, db: Session = Depends(get_db)):
             class_id=txn.class_id,
             job_id=txn.job_id,
         )
+        release_statement_links(db, txn)
         db.commit()
         db.refresh(void_txn)
         return get_journal_entry(void_txn.id, db)

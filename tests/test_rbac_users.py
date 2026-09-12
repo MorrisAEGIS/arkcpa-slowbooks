@@ -87,6 +87,7 @@ def test_create_list_update_user(client):
         json={
             "username": "Renita",
             "display_name": "Renita",
+            "email": "RENITA@EXAMPLE.COM",
             "password": "renita-password-1",
             "role": "bookkeeper",
         },
@@ -94,6 +95,7 @@ def test_create_list_update_user(client):
     assert r.status_code == 201
     body = r.json()
     assert body["username"] == "renita"  # normalized lowercase
+    assert body["email"] == "renita@example.com"
     assert "password" not in str(body) or "password_hash" not in body
 
     users = client.get("/api/users").json()
@@ -102,6 +104,41 @@ def test_create_list_update_user(client):
     r = client.put(f"/api/users/{body['id']}", json={"role": "readonly"})
     assert r.status_code == 200
     assert r.json()["role"] == "readonly"
+
+
+def test_authentik_email_must_be_valid_and_unique(client):
+    first = client.post(
+        "/api/users",
+        json={
+            "username": "first-user",
+            "email": "first@example.com",
+            "password": "first-user-password",
+            "role": "bookkeeper",
+        },
+    )
+    assert first.status_code == 201
+
+    invalid = client.post(
+        "/api/users",
+        json={
+            "username": "bad-email",
+            "email": "not-an-email",
+            "password": "bad-email-password",
+            "role": "readonly",
+        },
+    )
+    assert invalid.status_code == 400
+
+    duplicate = client.post(
+        "/api/users",
+        json={
+            "username": "second-user",
+            "email": "FIRST@EXAMPLE.COM",
+            "password": "second-user-password",
+            "role": "readonly",
+        },
+    )
+    assert duplicate.status_code == 409
 
 
 def test_user_validation(client):

@@ -210,7 +210,7 @@
         // Anything else (print-preview HTML, etc.)
         const html = await response.text();
         if (window.pywebview && window.pywebview.api && window.pywebview.api.open_document_html) {
-            await window.pywebview.api.open_document_html('SlowBooks Pro 2026', html);
+            await window.pywebview.api.open_document_html('Ark CPA', html);
         } else {
             bridgeMissing('open the document');
         }
@@ -221,7 +221,7 @@
     // but had no methods, and both branches above returned in silence.
     function bridgeMissing(what) {
         const msg = 'The desktop viewer is unavailable: the native bridge (window.pywebview.api) '
-            + 'has no methods, so SlowBooks cannot ' + what + '. Restart the app; if it persists, '
+            + 'has no methods, so Ark CPA cannot ' + what + '. Restart the app; if it persists, '
             + 'report it with the launcher log.';
         console.error(msg);
         if (typeof toast === 'function') toast(msg, 'error');

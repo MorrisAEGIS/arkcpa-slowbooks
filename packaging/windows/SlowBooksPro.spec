@@ -10,10 +10,23 @@
 
 import glob
 import os
+import sys
 
 from PyInstaller.utils.hooks import collect_submodules
 
 ROOT = os.path.abspath(os.path.join(SPECPATH, "..", ".."))
+
+# Version resource for the exe (issue #106): FileVersion / ProductVersion /
+# ProductName come from app/__init__.py, so Properties → Details and
+# inventory tools can answer "what version is this" from the binary.
+sys.path.insert(0, SPECPATH)
+import version_info as _version_info  # noqa: E402
+
+VERSION_FILE = os.path.join(SPECPATH, "version_info.txt")
+APP_VERSION = _version_info.write(
+    __import__("pathlib").Path(ROOT, "app", "__init__.py"),
+    __import__("pathlib").Path(VERSION_FILE),
+)
 
 
 def _tree(src_rel, dest):
@@ -104,6 +117,7 @@ exe = EXE(
     upx=False,
     console=False,  # GUI app: no console window (launcher logs to file)
     icon="slowbookspro.ico",
+    version=VERSION_FILE,
 )
 coll = COLLECT(
     exe,

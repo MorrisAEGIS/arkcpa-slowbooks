@@ -113,7 +113,7 @@ def audited():
     findings = []
     for path in _python_files():
         try:
-            tree = ast.parse(path.read_text(), filename=str(path))
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         except SyntaxError as e:
             pytest.fail(f"Cannot parse {path}: {e}")
         a = _SubprocessAuditor(path)
@@ -204,7 +204,9 @@ def test_shell_scripts_quote_all_variable_expansions():
     offenses: list[tuple[Path, int, str]] = []
 
     for path in _shell_files():
-        for lineno, raw_line in enumerate(path.read_text().splitlines(), start=1):
+        for lineno, raw_line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
             # Strip inline comments — `# $VAR` is fine.
             comment_at = raw_line.find("#")
             line = raw_line if comment_at < 0 else raw_line[:comment_at]

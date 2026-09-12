@@ -20,7 +20,9 @@ TEMPLATES = sorted(glob.glob(str(ROOT / "app/templates/*.html")))
 def test_every_table_header_has_a_scope():
     offenders = []
     for f in JS + [str(ROOT / "index.html")]:
-        for m in re.finditer(r"<th(?![^>]*\bscope=)[\s>]", Path(f).read_text()):
+        for m in re.finditer(
+            r"<th(?![^>]*\bscope=)[\s>]", Path(f).read_text(encoding="utf-8")
+        ):
             offenders.append(f"{Path(f).name}:{m.start()}")
     assert not offenders, offenders[:10]
 
@@ -29,7 +31,8 @@ def test_icon_only_remove_buttons_have_labels():
     offenders = []
     for f in JS:
         for m in re.finditer(
-            r"<button[^>]*>\s*(X|×|&times;)\s*</button>", Path(f).read_text()
+            r"<button[^>]*>\s*(X|×|&times;)\s*</button>",
+            Path(f).read_text(encoding="utf-8"),
         ):
             if "aria-label" not in m.group(0):
                 offenders.append(f"{Path(f).name}: {m.group(0)[:80]}")
@@ -37,7 +40,7 @@ def test_icon_only_remove_buttons_have_labels():
 
 
 def test_toast_region_is_live_and_modal_is_a_dialog():
-    html = (ROOT / "index.html").read_text()
+    html = (ROOT / "index.html").read_text(encoding="utf-8")
     toast = re.search(r'<div id="toast-container"[^>]*>', html).group(0)
     assert 'aria-live="polite"' in toast and 'role="status"' in toast
     modal = re.search(r'<div id="modal"[^>]*>', html).group(0)
@@ -46,16 +49,30 @@ def test_toast_region_is_live_and_modal_is_a_dialog():
         and 'aria-modal="true"' in modal
         and 'aria-labelledby="modal-title"' in modal
     )
-    utils = (ROOT / "app/static/js/utils.js").read_text()
+    utils = (ROOT / "app/static/js/utils.js").read_text(encoding="utf-8")
     assert (
         "Escape" in utils and "_modalOpener" in utils
     )  # focus trap + restore live here
 
 
+def test_mobile_navigation_is_named_and_removes_closed_drawer_from_tab_order():
+    html = (ROOT / "index.html").read_text(encoding="utf-8")
+    toggle = re.search(r'<button class="mobile-nav-toggle"[^>]*>', html).group(0)
+    backdrop = re.search(r'<button class="mobile-nav-backdrop"[^>]*>', html).group(0)
+    assert 'aria-controls="sidebar"' in toggle
+    assert 'aria-expanded="false"' in toggle
+    assert 'aria-label="Open navigation"' in toggle
+    assert 'aria-label="Close navigation"' in backdrop
+
+    bootstrap = (ROOT / "app/static/js/bootstrap.js").read_text(encoding="utf-8")
+    assert "sidebar.inert = mobileQuery.matches && !active" in bootstrap
+    assert "event.key === 'Escape'" in bootstrap
+
+
 def test_pdf_templates_declare_language_and_title():
     missing = []
     for f in TEMPLATES:
-        text = Path(f).read_text()
+        text = Path(f).read_text(encoding="utf-8")
         if "<html" in text and not re.search(r"<html[^>]*\blang=", text):
             missing.append(f"{Path(f).name}: lang")
         if (
@@ -79,7 +96,7 @@ def test_muted_text_token_clears_aa_contrast():
 
         return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
 
-    css = (ROOT / "app/static/css/style.css").read_text()
+    css = (ROOT / "app/static/css/style.css").read_text(encoding="utf-8")
     tok = re.search(r"--gray-400:\s*(#[0-9a-fA-F]{6})", css).group(1)
     ratio = (lum("#ffffff") + 0.05) / (lum(tok) + 0.05)
     assert ratio >= 4.5, f"--gray-400 {tok} is {ratio:.2f}:1 on white"

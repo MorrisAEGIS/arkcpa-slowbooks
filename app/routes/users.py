@@ -15,13 +15,37 @@ from pydantic import Field
 from app.schemas.common import StrictModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_control_db
 from app.models.users import ROLE_ADMIN, VALID_ROLES, User
 from app.services.auth import MIN_PASSWORD_LEN, hash_password
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 _USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,49}$")
+_EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
+
+def _email(value: str | None) -> str | None:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        return None
+    if len(normalized) > 320 or not _EMAIL_RE.fullmatch(normalized):
+        raise HTTPException(status_code=400, detail="Valid email address required")
+    return normalized
+
+
+def _email_available(
+    db: Session, email: str | None, user_id: int | None = None
+) -> None:
+    if not email:
+        return
+    query = db.query(User.id).filter(User.email == email)
+    if user_id is not None:
+        query = query.filter(User.id != user_id)
+    if query.first() is not None:
+        raise HTTPException(
+            status_code=409, detail="Email is already assigned to a user"
+        )
 
 
 def _require_admin(request: Request) -> None:
@@ -35,6 +59,8 @@ def _user_out(u: User) -> dict:
         "username": u.username,
         "display_name": u.display_name,
         "role": u.role,
+        "email": u.email or "",
+        "auth_source": "authentik" if u.oidc_subject else "local",
         "is_active": u.is_active,
         "created_at": u.created_at.isoformat() if u.created_at else None,
         "last_login_at": u.last_login_at.isoformat() if u.last_login_at else None,
@@ -53,25 +79,29 @@ def _other_active_admin_exists(db: Session, user: User) -> bool:
 class UserCreate(StrictModel):
     username: str = Field(..., min_length=3, max_length=50)
     display_name: str = Field("", max_length=200)
+    email: Optional[str] = Field(None, max_length=320)
     password: str = Field(..., min_length=1, max_length=512)
     role: str = Field(...)
 
 
 class UserUpdate(StrictModel):
     display_name: Optional[str] = Field(None, max_length=200)
+    email: Optional[str] = Field(None, max_length=320)
     role: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = Field(None, max_length=512)
 
 
 @router.get("")
-def list_users(request: Request, db: Session = Depends(get_db)):
+def list_users(request: Request, db: Session = Depends(get_control_db)):
     _require_admin(request)
     return [_user_out(u) for u in db.query(User).order_by(User.id).all()]
 
 
 @router.post("", status_code=201)
-def create_user(payload: UserCreate, request: Request, db: Session = Depends(get_db)):
+def create_user(
+    payload: UserCreate, request: Request, db: Session = Depends(get_control_db)
+):
     _require_admin(request)
     username = payload.username.strip().lower()
     if not _USERNAME_RE.match(username):
@@ -88,9 +118,12 @@ def create_user(payload: UserCreate, request: Request, db: Session = Depends(get
         )
     if db.query(User).filter(User.username == username).first():
         raise HTTPException(status_code=409, detail="Username already exists")
+    email = _email(payload.email)
+    _email_available(db, email)
     user = User(
         username=username,
         display_name=payload.display_name.strip() or username.title(),
+        email=email,
         password_hash=hash_password(payload.password),
         role=payload.role,
         is_active=True,
@@ -102,7 +135,10 @@ def create_user(payload: UserCreate, request: Request, db: Session = Depends(get
 
 @router.put("/{user_id}")
 def update_user(
-    user_id: int, payload: UserUpdate, request: Request, db: Session = Depends(get_db)
+    user_id: int,
+    payload: UserUpdate,
+    request: Request,
+    db: Session = Depends(get_control_db),
 ):
     _require_admin(request)
     user = db.query(User).filter(User.id == user_id).first()
@@ -128,6 +164,10 @@ def update_user(
         user.role = payload.role
     if payload.display_name is not None:
         user.display_name = payload.display_name.strip()
+    if payload.email is not None:
+        email = _email(payload.email)
+        _email_available(db, email, user.id)
+        user.email = email
     if payload.is_active is not None:
         user.is_active = payload.is_active
     if payload.password:

@@ -1,0 +1,763 @@
+/* Ark CPA application shell and controller surfaces. */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+body {
+    --font: var(--ark-font);
+}
+
+#topbar {
+    min-height: 48px;
+    height: auto;
+    padding: 7px 12px;
+    color: var(--ark-ink);
+    background: var(--ark-canvas);
+    border-bottom-color: var(--ark-line-faint);
+}
+
+.topbar-brand {
+    color: var(--ark-ink);
+    font-size: 14px;
+    letter-spacing: -0.01em;
+}
+
+.topbar-brand span,
+.topbar-clock {
+    color: var(--ark-ink-muted);
+}
+
+#topbar .tb-btn {
+    color: var(--ark-ink-muted);
+}
+
+#topbar .tb-btn:hover,
+#topbar .tb-btn:focus-visible {
+    color: var(--ark-ink);
+    border-color: var(--ark-line);
+    background: var(--ark-surface-raised);
+}
+
+#topbar .tb-sep {
+    background: var(--ark-line-faint);
+}
+
+#topbar .topbar-company {
+    color: var(--ark-gold);
+}
+
+#sidebar {
+    color: var(--ark-ink-muted);
+    background: var(--ark-surface);
+    border-right-color: var(--ark-line-faint);
+}
+
+.sidebar-header {
+    background: var(--ark-canvas);
+    border-bottom-color: var(--ark-line-faint);
+}
+
+.sidebar-header h1 {
+    color: var(--ark-ink);
+    letter-spacing: -0.02em;
+}
+
+.sidebar-edition,
+.nav-section,
+.sidebar-footer,
+.sidebar-footer .footer-link {
+    color: var(--ark-ink-faint);
+}
+
+.nav-link {
+    color: var(--ark-ink-muted);
+    border-left: 2px solid transparent;
+}
+
+.nav-link:hover {
+    color: var(--ark-ink);
+    background: var(--ark-surface-raised);
+}
+
+.nav-link.active {
+    color: var(--ark-ink);
+    background: color-mix(in oklch, var(--ark-gold) 10%, var(--ark-surface));
+    border-left-color: var(--ark-gold);
+}
+
+.nav-link.active .nav-icon {
+    color: var(--ark-gold);
+}
+
+.ark-entity-select {
+    min-width: 150px;
+    max-width: 230px;
+    height: 30px;
+    padding: 0 30px 0 9px;
+    border: 1px solid var(--ark-line);
+    border-radius: 6px;
+    color: var(--ark-ink);
+    background: var(--ark-surface-raised);
+    font: 600 11px var(--ark-font);
+}
+
+.ark-entity-select:focus-visible {
+    outline: 2px solid var(--ark-focus);
+    outline-offset: 2px;
+}
+
+.mobile-nav-toggle,
+.mobile-nav-backdrop {
+    display: none;
+}
+
+.ark-workspace-chip {
+    border-color: color-mix(in oklch, var(--ark-action) 42%, transparent);
+    color: var(--ark-ink);
+    background: color-mix(in oklch, var(--ark-action) 10%, var(--ark-surface));
+}
+
+.arkcpa-page {
+    display: grid;
+    gap: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.arkcpa-hero {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px;
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    background: var(--panel-bg);
+}
+
+.arkcpa-hero__states,
+.arkcpa-actions,
+.arkcpa-card-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.arkcpa-hero__states {
+    justify-content: flex-end;
+}
+
+.arkcpa-hero h2,
+.arkcpa-empty h2 {
+    margin: 3px 0 4px;
+    font-size: clamp(21px, 3vw, 31px);
+    letter-spacing: -0.035em;
+}
+
+.arkcpa-hero p,
+.arkcpa-copy,
+.arkcpa-empty p,
+.arkcpa-review-card p,
+.arkcpa-entity-card p,
+.arkcpa-obligation p {
+    color: var(--text-muted);
+}
+
+.arkcpa-eyebrow {
+    color: var(--qb-gold);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.arkcpa-state {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 7px;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.arkcpa-state.is-good,
+.arkcpa-checklist .is-good { color: var(--success); }
+.arkcpa-state.is-hold,
+.arkcpa-checklist .is-hold,
+.arkcpa-state.is-review { color: var(--warning); }
+.arkcpa-state.is-bad { color: var(--danger); }
+
+.arkcpa-metrics {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.arkcpa-metric {
+    min-height: 94px;
+    padding: 16px;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    background: var(--panel-bg);
+    text-decoration: none;
+}
+
+.arkcpa-metric:hover,
+.arkcpa-metric:focus-visible {
+    border-color: var(--qb-gold);
+    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.08);
+}
+
+.arkcpa-metric strong,
+.arkcpa-metric span {
+    display: block;
+}
+
+.arkcpa-metric strong {
+    margin-bottom: 8px;
+    font-size: 27px;
+    letter-spacing: -0.04em;
+}
+
+.arkcpa-metric span {
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.arkcpa-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.arkcpa-panel,
+.arkcpa-review-card,
+.arkcpa-entity-card,
+.arkcpa-obligation {
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    background: var(--panel-bg);
+}
+
+.arkcpa-panel {
+    padding: 18px;
+}
+
+.arkcpa-panel--wide {
+    min-width: 0;
+}
+
+.arkcpa-panel__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.arkcpa-panel__head h3 {
+    font-size: 14px;
+}
+
+.arkcpa-panel__head span {
+    color: var(--text-muted);
+    font: 10px var(--font-mono);
+}
+
+.arkcpa-checklist {
+    display: grid;
+    gap: 10px;
+    list-style: none;
+}
+
+.arkcpa-checklist span {
+    display: inline-block;
+    min-width: 46px;
+    margin-right: 7px;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.arkcpa-callout {
+    padding: 11px 13px;
+    border-left: 3px solid var(--qb-gold);
+    color: var(--text-secondary);
+    background: color-mix(in srgb, var(--qb-gold) 8%, var(--panel-bg));
+    font-size: 11px;
+}
+
+.arkcpa-copy + .arkcpa-callout {
+    margin-top: 14px;
+}
+
+.arkcpa-empty {
+    display: grid;
+    justify-items: start;
+    gap: 11px;
+    padding: clamp(28px, 7vw, 72px);
+    border: 1px dashed var(--panel-border);
+    border-radius: 10px;
+    background: var(--panel-bg);
+}
+
+.arkcpa-review-list,
+.arkcpa-obligations,
+.arkcpa-entity-grid {
+    display: grid;
+    gap: 10px;
+}
+
+.arkcpa-review-card {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(260px, auto) auto;
+    align-items: center;
+    gap: 18px;
+    padding: 15px;
+}
+
+.arkcpa-card-actions {
+    justify-content: flex-end;
+}
+
+.arkcpa-muted,
+.arkcpa-hash {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.arkcpa-hash {
+    display: block;
+    margin-top: 4px;
+    font-family: var(--font-mono);
+}
+
+.arkcpa-fact-count {
+    padding: 3px 7px;
+    border: 1px solid var(--ark-line);
+    border-radius: 999px;
+    color: var(--ark-ink);
+    background: var(--ark-surface-raised);
+    font: 700 9px var(--ark-font);
+    cursor: pointer;
+}
+
+.arkcpa-fact-count:hover,
+.arkcpa-fact-count:focus-visible {
+    border-color: var(--ark-gold);
+    outline: none;
+}
+
+.arkcpa-facts,
+.arkcpa-source-list,
+.arkcpa-run-list,
+.arkcpa-issue-list {
+    display: grid;
+    gap: 8px;
+}
+
+.arkcpa-facts > div,
+.arkcpa-source-list > a,
+.arkcpa-source-list > div,
+.arkcpa-runline,
+.arkcpa-issue {
+    padding: 10px 11px;
+    border: 1px solid var(--ark-line-faint);
+    border-radius: 6px;
+    background: var(--ark-surface-raised);
+}
+
+.arkcpa-facts > div,
+.arkcpa-source-list > a,
+.arkcpa-source-list > div {
+    display: grid;
+    gap: 3px;
+}
+
+.arkcpa-source-list > a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.arkcpa-source-list > a:hover,
+.arkcpa-source-list > a:focus-visible {
+    border-color: var(--ark-gold);
+}
+
+.arkcpa-facts span,
+.arkcpa-source-list span,
+.arkcpa-facts small,
+.arkcpa-source-list small {
+    color: var(--text-muted);
+    font-size: 9px;
+}
+
+.arkcpa-facts strong,
+.arkcpa-source-list strong {
+    overflow-wrap: anywhere;
+    font-size: 11px;
+}
+
+.arkcpa-runline {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    font-size: 10px;
+}
+
+.arkcpa-runline strong {
+    color: var(--ark-gold);
+    text-transform: uppercase;
+}
+
+.arkcpa-runline time,
+.arkcpa-runline code {
+    color: var(--text-muted);
+    font: 9px var(--font-mono);
+}
+
+.arkcpa-issue {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    gap: 10px;
+}
+
+.arkcpa-issue p {
+    margin-top: 3px;
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.arkcpa-review-card h3,
+.arkcpa-entity-card h3 {
+    margin: 3px 0;
+    font-size: 13px;
+}
+
+.arkcpa-agent-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(110px, 1fr));
+    gap: 8px;
+}
+
+.arkcpa-agent-pair span {
+    display: grid;
+    gap: 4px;
+    color: var(--text-muted);
+    font-size: 9px;
+    text-transform: uppercase;
+}
+
+.arkcpa-agent-pair strong {
+    color: var(--text-primary);
+    font-size: 11px;
+    text-transform: none;
+}
+
+.arkcpa-obligation {
+    display: grid;
+    grid-template-columns: 100px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    padding: 14px;
+}
+
+.arkcpa-obligation h3 {
+    margin-top: 3px;
+    font: 700 12px var(--font-mono);
+}
+
+.arkcpa-obligation > div:first-child > span {
+    color: var(--text-muted);
+    font-size: 9px;
+}
+
+.arkcpa-entity-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.arkcpa-entity-card {
+    display: grid;
+    gap: 15px;
+    padding: 17px;
+}
+
+.arkcpa-entity-card.is-active {
+    border-color: var(--qb-gold);
+    box-shadow: inset 3px 0 var(--qb-gold);
+}
+
+.arkcpa-entity-card dl {
+    display: grid;
+    grid-template-columns: 70px 1fr;
+    gap: 5px 10px;
+    min-width: 0;
+    font-size: 10px;
+}
+
+.arkcpa-entity-card dt { color: var(--text-muted); }
+.arkcpa-entity-card dd { overflow-wrap: anywhere; }
+.arkcpa-active-label { color: var(--success); font-size: 10px; text-transform: uppercase; }
+
+@media (max-width: 1050px) {
+    .arkcpa-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .arkcpa-review-card { grid-template-columns: 1fr auto; }
+    .arkcpa-review-card .arkcpa-agent-pair { grid-column: 1 / -1; grid-row: 2; }
+    .ark-workspace-chip { display: none; }
+}
+
+@media (max-width: 700px) {
+    .arkcpa-grid,
+    .arkcpa-metrics { grid-template-columns: 1fr; }
+    .arkcpa-hero { padding: 16px; }
+    .arkcpa-hero__states { justify-content: flex-start; }
+    .arkcpa-review-card { grid-template-columns: minmax(0, 1fr); }
+    .arkcpa-review-card .arkcpa-agent-pair { grid-column: auto; grid-row: auto; grid-template-columns: 1fr; }
+    .arkcpa-obligation { grid-template-columns: 74px minmax(0, 1fr); }
+    .arkcpa-obligation > .arkcpa-state { grid-column: 2; }
+    .arkcpa-runline { grid-template-columns: minmax(0, 1fr) auto; }
+    .arkcpa-runline time,
+    .arkcpa-runline code { grid-column: 1 / -1; }
+    .ark-entity-select { min-width: 0; max-width: 150px; }
+}
+
+@media (max-width: 767px) {
+    :root {
+        --sidebar-width: min(82vw, 304px);
+        --topbar-height: 56px;
+        --statusbar-height: 32px;
+    }
+
+    body {
+        font-size: 14px;
+    }
+
+    #topbar {
+        position: relative;
+        min-height: var(--topbar-height);
+        padding: 6px 8px;
+        gap: 6px;
+        overflow: hidden;
+    }
+
+    .mobile-nav-toggle {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+        border: 1px solid var(--ark-line);
+        border-radius: 6px;
+        color: var(--ark-ink);
+        background: var(--ark-surface-raised);
+        font-size: 20px;
+    }
+
+    .mobile-nav-toggle:focus-visible {
+        outline: 2px solid var(--ark-focus);
+        outline-offset: 2px;
+    }
+
+    .topbar-brand {
+        margin: 0;
+        font-size: 13px;
+    }
+
+    .topbar-brand span,
+    .topbar-company,
+    #topbar > .tb-sep,
+    #topbar > .tb-btn,
+    #global-search,
+    #search-results,
+    #user-chip,
+    #topbar-clock,
+    #theme-toggle,
+    #about-btn,
+    .ark-workspace-chip {
+        display: none !important;
+    }
+
+    .topbar-right {
+        min-width: 0;
+        gap: 4px;
+    }
+
+    .topbar-right #logout-btn {
+        display: inline-flex !important;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 8px;
+    }
+
+    .ark-entity-select {
+        width: clamp(108px, 34vw, 150px);
+        min-width: 0;
+        max-width: none;
+        height: 44px;
+        font-size: 12px;
+    }
+
+    #main-area {
+        min-width: 0;
+    }
+
+    #sidebar {
+        position: fixed;
+        z-index: 320;
+        top: var(--topbar-height);
+        bottom: 0;
+        left: 0;
+        width: var(--sidebar-width);
+        transform: translateX(-105%);
+        box-shadow: 16px 0 40px color-mix(in oklch, var(--ark-canvas) 72%, transparent);
+        transition: transform 180ms var(--ark-ease-out);
+    }
+
+    body.mobile-nav-open #sidebar {
+        transform: translateX(0);
+    }
+
+    .mobile-nav-backdrop:not([hidden]) {
+        display: block;
+        position: fixed;
+        z-index: 310;
+        inset: var(--topbar-height) 0 0;
+        width: 100%;
+        border: 0;
+        background: color-mix(in oklch, var(--ark-canvas) 68%, transparent);
+    }
+
+    .nav-link {
+        min-height: 44px;
+        padding: 10px 16px;
+        font-size: 13px;
+    }
+
+    #content {
+        width: 100%;
+        min-width: 0;
+        padding: 12px;
+    }
+
+    #page-content,
+    .arkcpa-page {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+    }
+
+    .arkcpa-hero {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .arkcpa-panel__head,
+    .page-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .arkcpa-entity-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .table-container {
+        max-width: 100%;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+    }
+
+    .btn,
+    .modal-close {
+        min-height: 44px;
+        padding: 9px 12px;
+    }
+
+    .form-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .form-group.full-width {
+        grid-column: auto;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        min-height: 44px;
+        font-size: 16px;
+    }
+
+    .modal-overlay {
+        align-items: stretch;
+        padding: 0;
+    }
+
+    .modal {
+        width: 100%;
+        max-width: none;
+        max-height: 100dvh;
+        border-width: 0;
+    }
+
+    #statusbar {
+        min-width: 0;
+        padding: 0 8px;
+        gap: 8px;
+    }
+
+    #statusbar .status-sep,
+    #status-date {
+        display: none;
+    }
+
+    #status-company {
+        min-width: 0;
+        margin-left: auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+}
+
+@media (max-width: 360px) {
+    .topbar-brand {
+        display: none;
+    }
+
+    .ark-entity-select {
+        width: min(44vw, 148px);
+    }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+    #sidebar {
+        transition: none;
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .arkcpa-metric,
+    .arkcpa-review-card,
+    .arkcpa-entity-card { transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease; }
+    .arkcpa-metric:hover { transform: translateY(-1px); }
+}

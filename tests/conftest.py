@@ -75,7 +75,7 @@ from app.models import (  # noqa: F401
     transactions,
 )
 import app.database as db_module  # noqa: E402
-from app.database import Base, get_db  # noqa: E402
+from app.database import Base, get_control_db, get_db  # noqa: E402
 from app.seed.chart_of_accounts import CHART_OF_ACCOUNTS  # noqa: E402
 
 from app.main import app  # noqa: E402
@@ -144,6 +144,7 @@ def seed_accounts(db_session):
             account_number=data["account_number"],
             name=data["name"],
             account_type=AccountType(data["account_type"]),
+            bank_kind=data.get("bank_kind"),
             is_system=True,
             balance=Decimal("0"),
         )
@@ -190,6 +191,7 @@ def _wire_app(TestSession):
             session.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_control_db] = override_get_db
 
 
 @pytest.fixture

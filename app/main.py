@@ -29,6 +29,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.exception_handlers import http_exception_handler
 
 from app.services import storage
+from app.services.control_accounts import MissingControlAccount
 from app.services.rate_limit import limiter
 
 from app.routes import (
@@ -85,9 +86,10 @@ from app.routes import provider_payments, public
 
 # Phase 8: QuickBooks Online
 from app.routes import qbo
+from app.routes import arkcpa
 
 # Phase 9: Forum Bug Fixes & Missing Features
-from app.routes import journal, deposits, cc_charges, checks, expenses
+from app.routes import journal, deposits, cc_charges, checks, expenses, transfers
 
 # Phase 10: Quick Wins + Medium Effort Features
 from app.routes import bank_rules, budgets, attachments, email_templates
@@ -243,6 +245,30 @@ async def lifespan(app: FastAPI):
         warn_if_manifest_missing()
     except Exception:
         pass  # a diagnostic, never a reason not to boot
+    # Issue #119: say once, at boot, if this company's chart is missing an
+    # account the posting code resolves by number. Before 2.10.1 the first
+    # symptom was a document that looked saved and never reached the ledger;
+    # now the posting refuses, and this is the warning that gets ahead of it.
+    # A diagnostic, never fatal — refusing to boot would lock an operator out
+    # of the very chart they need to repair.
+    try:
+        from app.services.control_accounts import missing as _missing_controls
+
+        _db = SessionLocal()
+        try:
+            gaps = _missing_controls(_db)
+        finally:
+            _db.close()
+        if gaps:
+            logging.getLogger(__name__).warning(
+                "chart of accounts is missing %d control account(s): %s — "
+                "documents that need them will be refused (409) until they are "
+                "restored with these exact numbers",
+                len(gaps),
+                ", ".join(f"{n} {name}" for n, name in gaps),
+            )
+    except Exception:
+        pass  # a diagnostic, never a reason not to boot
     # At-rest upgrade: encrypt any legacy plaintext credential rows (SMTP,
     # payment, QBO, SimpleFIN secrets) on first boot after upgrading.
     try:
@@ -266,11 +292,12 @@ async def lifespan(app: FastAPI):
 # (fast, and the reason ORJSONResponse was deprecated in 0.136). We let it use
 # its default response class rather than pinning the now-deprecated ORJSON one.
 app = FastAPI(
-    title="Slowbooks Pro 2026",
+    title="Ark CPA",
     version=__version__,
     lifespan=lifespan,
     description=(
-        "Local bookkeeping API. Conventions an agent needs before writing:\n\n"
+        "Private multi-entity accounting API built on SlowBooks Pro 2026. "
+        "Conventions an agent needs before writing:\n\n"
         "- **Unknown fields are rejected** (422 naming the field); nothing is "
         "silently dropped.\n"
         "- **Posted documents are voided, not deleted**: `POST /api/<resource>/"
@@ -323,6 +350,24 @@ async def _method_not_allowed_handler(request: Request, exc: StarletteHTTPExcept
 
 
 app.add_exception_handler(StarletteHTTPException, _method_not_allowed_handler)
+
+
+# ---- Missing control account (issue #119) ----
+# A posting path that cannot resolve the account it must debit or credit
+# now raises instead of silently skipping its journal entry. Answer 409 —
+# the request was valid, the company's chart is not — and name the account
+# so the operator can restore it. Nothing was written: the raise happens
+# before any journal line is built.
+async def _missing_control_account_handler(request: Request, exc: Exception):
+    logging.getLogger(__name__).warning(
+        "posting refused: control account %s (%s) missing from the chart",
+        getattr(exc, "number", "?"),
+        getattr(exc, "name", "?"),
+    )
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+app.add_exception_handler(MissingControlAccount, _missing_control_account_handler)
 
 # ---- CORS (Phase 9.7: locked down) ----
 # Wildcard origins with credentials is a CSRF amplifier. Default to just
@@ -491,6 +536,7 @@ _AUTH_EXEMPT_PREFIXES = (
 )
 _AUTH_EXEMPT_EXACT = {
     "/",
+    "/login",
     "/health",
     # The published AI docs (llms.txt, ai/agents-template.md) tell agents to
     # fetch the spec FIRST and "discover endpoints from the spec; do not
@@ -759,9 +805,11 @@ app.include_router(public.router)
 app.include_router(qbo.router)
 # Phase 9: Analytics (real-time business intelligence)
 app.include_router(analytics.router)
+app.include_router(arkcpa.router)
 # Phase 9: Forum Bug Fixes & Missing Features
 app.include_router(journal.router)
 app.include_router(deposits.router)
+app.include_router(transfers.router)
 app.include_router(cc_charges.router)
 app.include_router(expenses.router)
 app.include_router(checks.router)
@@ -827,6 +875,12 @@ async def serve_index():
     return FileResponse(str(index_path))
 
 
+@app.get("/login", include_in_schema=False)
+async def serve_login():
+    """Serve the dedicated browser sign-in state from the SPA shell."""
+    return FileResponse(str(index_path))
+
+
 @app.get("/analytics")
 async def serve_analytics_redirect():
     """Backwards-compat: old /analytics bookmarks land on the SPA hash route.
@@ -853,7 +907,14 @@ async def serve_analytics_redirect():
 # Applied globally, with the genuinely public routes exempted so the document
 # stays truthful in both directions.
 # ---------------------------------------------------------------------------
-_PUBLIC_FOR_SPEC = {"/", "/health", "/openapi.json", "/analytics", "/favicon.ico"}
+_PUBLIC_FOR_SPEC = {
+    "/",
+    "/login",
+    "/health",
+    "/openapi.json",
+    "/analytics",
+    "/favicon.ico",
+}
 _PUBLIC_PREFIXES_FOR_SPEC = ("/api/auth/", "/pay/", "/portal/", "/static/")
 
 

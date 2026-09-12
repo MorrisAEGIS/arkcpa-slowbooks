@@ -1,4 +1,24 @@
 {
+  "2.10.1": {
+    "title": "A document is never accepted without its journal entry",
+    "items": [
+      "Renumbering an account the software posts to — Accounts Receivable, Accounts Payable and thirteen others — is refused instead of quietly breaking new documents; renaming is still yours to do",
+      "A posting that cannot find the account it needs now stops and names it, rather than saving a document that never reached the ledger",
+      "Opening a company file says once if its chart of accounts is missing an account the books depend on"
+    ]
+  },
+  "2.10.0": {
+    "title": "The bank register is the ledger",
+    "items": [
+      "A register entry posts to the general ledger, and the register shows every posting on the account with a running balance",
+      "Bank and credit-card accounts are flagged on the chart; every paid-from and deposit-to picker lists exactly those",
+      "Statement lines from feeds and imports wait in To review: match them to what you entered, or add them with a category — nothing posts silently",
+      "Transfers between accounts (that is how a card gets paid); credit-card charges pick the card and can be voided",
+      "Reconciliation ticks ledger lines, starts from the prior statement, and locks what it closed",
+      "Upgrading: the old register balance is shown once — post it as an opening balance or dismiss it",
+      "PDF receipts scan on Windows and macOS with nothing to install; poppler-utils is only needed on Linux"
+    ]
+  },
   "2.9.4": {
     "title": "Company logo on every document",
     "items": [

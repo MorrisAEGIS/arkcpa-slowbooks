@@ -69,7 +69,7 @@ def _parse_date(s: str) -> date:
 @router.get("/export/all")
 def export_all_iif(db: Session = Depends(get_db)):
     content = export_all(db)
-    return _iif_response(content, "slowbooks_export.iif")
+    return _iif_response(content, "ark-cpa-export.iif")
 
 
 @router.get("/export/accounts")

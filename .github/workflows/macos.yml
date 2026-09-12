@@ -66,6 +66,7 @@ jobs:
             test "$GITHUB_REF_NAME" = "v$APP_VERSION"
           fi
           echo "APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "APP_BUILD_SHA=$GITHUB_SHA" >> "$GITHUB_ENV"
           echo "BUILD_BASENAME=SlowBooksPro-${APP_VERSION}-macos-arm64" >> "$GITHUB_ENV"
 
       - name: Install WeasyPrint native dependencies
@@ -112,6 +113,11 @@ jobs:
           plutil -lint "$app/Contents/Info.plist"
           test "$(plutil -extract CFBundleShortVersionString raw -o - \
             "$app/Contents/Info.plist")" = "$APP_VERSION"
+          # Build identity (testing-repo #28): the bundle must say which
+          # commit it is, not just which release.
+          bundle_version="$(plutil -extract CFBundleVersion raw -o - "$app/Contents/Info.plist")"
+          test "$bundle_version" = "${APP_VERSION}+${GITHUB_SHA:0:12}"
+          test "$bundle_version" != "$APP_VERSION"
           test "$(plutil -extract LSMinimumSystemVersion raw -o - \
             "$app/Contents/Info.plist")" = "14.0"
           test "$(lipo -archs "$app/Contents/MacOS/SlowBooksPro")" = "arm64"

@@ -19,7 +19,6 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.accounts import Account, AccountType
-from app.models.banking import BankAccount
 from app.models.bills import Bill, BillStatus
 from app.models.contacts import Customer
 from app.models.invoices import Invoice, InvoiceStatus
@@ -109,13 +108,35 @@ def payables(db: Session) -> dict:
     return {"total": _f(total), "overdue_count": int(overdue or 0)}
 
 
+def _bank_ledger_rows(db: Session) -> list[dict]:
+    """Bank and card accounts with their ledger balances (issue #114: the
+    register's stored balance is gone; the ledger is the number)."""
+    from app.services.bank_register import gl_balances
+
+    accounts = (
+        db.query(Account)
+        .filter(Account.bank_kind.isnot(None), Account.is_active)
+        .order_by(Account.account_number)
+        .all()
+    )
+    balances = gl_balances(db, [a.id for a in accounts])
+    return [
+        {
+            "id": a.id,
+            "name": a.name,
+            "kind": a.bank_kind,
+            "balance": _f(balances.get(a.id, 0)),
+        }
+        for a in accounts
+    ]
+
+
 def bank_balances(db: Session) -> dict:
-    rows = db.query(BankAccount).filter(BankAccount.is_active).all()
+    rows = _bank_ledger_rows(db)
+    # cards are owed, not cash: the total is the bank side only
     return {
-        "accounts": [
-            {"id": b.id, "name": b.name, "balance": _f(b.balance)} for b in rows
-        ],
-        "total": sum(_f(b.balance) for b in rows),
+        "accounts": rows,
+        "total": sum(r["balance"] for r in rows if r["kind"] == "bank"),
     }
 
 
@@ -261,9 +282,7 @@ def cash_position(db: Session) -> dict:
     A forecast, not a promise — it assumes customers pay on the due date."""
     today = date.today()
     horizon = today + timedelta(days=30)
-    cash = sum(
-        _f(b.balance) for b in db.query(BankAccount).filter(BankAccount.is_active).all()
-    )
+    cash = sum(r["balance"] for r in _bank_ledger_rows(db) if r["kind"] == "bank")
     ar_due = _f(
         db.query(func.coalesce(func.sum(Invoice.balance_due), 0))
         .filter(Invoice.status.in_(OPEN_INVOICE), Invoice.due_date <= horizon)

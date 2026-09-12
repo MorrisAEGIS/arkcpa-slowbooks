@@ -380,12 +380,11 @@ const SettingsPage = {
                 </div>
 
                 <div class="settings-section" id="settings-users" style="display:none;">
-                    <h3>Users &mdash; Server Edition</h3>
+                    <h3>Ark CPA users</h3>
                     <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px;">
-                        Add a second user and this deployment becomes
-                        <strong>Server Edition</strong>: everyone signs in with a
-                        username, every change is attributed in the audit log, and
-                        roles limit what each person can do.
+                        One Ark CPA workspace supports multiple named people.
+                        Authentik email binds the local user to an immutable login;
+                        entity membership controls which separate ledgers they can open.
                     </p>
                     <div id="users-list" style="margin-bottom:12px;"></div>
                     <div class="form-grid" style="align-items:end;">
@@ -393,6 +392,8 @@ const SettingsPage = {
                             <input id="user-new-username" autocomplete="off"></div>
                         <div class="form-group"><label>Display name</label>
                             <input id="user-new-display" autocomplete="off"></div>
+                        <div class="form-group"><label>Authentik email</label>
+                            <input id="user-new-email" type="email" autocomplete="off"></div>
                         <div class="form-group"><label>Password</label>
                             <input id="user-new-password" type="password" autocomplete="new-password"></div>
                         <div class="form-group"><label>Role</label>
@@ -422,7 +423,7 @@ const SettingsPage = {
                     <div id="api-token-list" style="margin-bottom:12px;"></div>
                     <div class="form-grid" style="align-items:end;">
                         <div class="form-group"><label>Label</label>
-                            <input id="token-new-label" autocomplete="off" placeholder="e.g. claude-code, receipt-service"></div>
+                            <input id="token-new-label" autocomplete="off" placeholder="e.g. ark-bookkeeper"></div>
                         <div class="form-group"><label>Role</label>
                             <select id="token-new-role">
                                 <option value="readonly">Read-only — reports and lookups</option>
@@ -454,6 +455,7 @@ const SettingsPage = {
             const rows = users.map(u => `<tr>
                 <td>${escapeHtml(u.username)}</td>
                 <td>${escapeHtml(u.display_name)}</td>
+                <td><input type="email" value="${escapeHtml(u.email || '')}" aria-label="Authentik email for ${escapeHtml(u.username)}" onchange="SettingsPage.updateUser(${u.id}, {email: this.value})"></td>
                 <td>
                     <select onchange="SettingsPage.updateUser(${u.id}, {role: this.value})">
                         ${['admin', 'bookkeeper', 'readonly'].map(r =>
@@ -468,7 +470,7 @@ const SettingsPage = {
                 </td>
             </tr>`).join('');
             $('#users-list').innerHTML = `<div class="table-container"><table>
-                <thead><tr><th scope="col">Username</th><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Last login</th><th scope="col"></th></tr></thead>
+                <thead><tr><th scope="col">Username</th><th scope="col">Name</th><th scope="col">Authentik email</th><th scope="col">Role</th><th scope="col">Last login</th><th scope="col">Actions</th></tr></thead>
                 <tbody>${rows}</tbody></table></div>`;
         } catch (e) { /* non-admin or pre-upgrade server: section stays hidden */ }
     },
@@ -532,12 +534,14 @@ const SettingsPage = {
             await API.post('/users', {
                 username: $('#user-new-username').value.trim(),
                 display_name: $('#user-new-display').value.trim(),
+                email: $('#user-new-email').value.trim(),
                 password: $('#user-new-password').value,
                 role: $('#user-new-role').value,
             });
-            toast('User added — this deployment is now Server Edition');
+            toast('Ark CPA user added');
             $('#user-new-username').value = '';
             $('#user-new-display').value = '';
+            $('#user-new-email').value = '';
             $('#user-new-password').value = '';
             SettingsPage.loadUsers();
         } catch (err) { toast(err.message, 'error'); }
@@ -655,9 +659,15 @@ const SettingsPage = {
                 const langs = (s.languages || []).join(', ') || '—';
                 const engineNames = { tesseract: 'Tesseract OCR', vision: 'Apple Vision (built into macOS)', winrt: 'Windows OCR (built into Windows)' };
                 const engineLabel = engineNames[s.engine] || 'OCR engine';
+                const pdfNames = { windows: 'built into Windows', macos: 'built into macOS', poppler: 'via poppler-utils' };
+                const pdfNote = s.pdf
+                    ? ` &middot; PDFs: ${escapeHtml(pdfNames[s.pdf] || s.pdf)}`
+                    : '<div style="font-size:11px; color:#b45309; margin-top:4px;">PDF scanning is not available on this machine (images still scan). '
+                      + 'Linux: <code>sudo apt-get install poppler-utils</code>; other platforms: <code>brew install poppler</code> / poppler for Windows on PATH.</div>';
                 el.innerHTML = `<strong style="color:#166534;">${escapeHtml(engineLabel)} is ready</strong>`
                     + (s.version ? ` <span style="color:var(--text-muted);">(${escapeHtml(s.version)})</span>` : '')
-                    + ` &middot; languages: ${escapeHtml(langs)}`;
+                    + ` &middot; languages: ${escapeHtml(langs)}`
+                    + pdfNote;
             } else {
                 el.innerHTML = '<strong style="color:#b45309;">No OCR engine is available — scanning is disabled.</strong>'
                     + '<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">macOS and Windows normally use the engine built into the OS; installing Tesseract enables scanning anywhere.</div>'
@@ -665,9 +675,8 @@ const SettingsPage = {
                     + 'Ubuntu: <code>sudo apt-get install tesseract-ocr</code> &middot; '
                     + 'macOS: <code>brew install tesseract</code> &middot; '
                     + 'Windows: install the UB Mannheim Tesseract build.<br>'
-                    + 'PDFs also need poppler-utils: '
-                    + '<code>sudo apt-get install poppler-utils</code> (Ubuntu) / '
-                    + '<code>brew install poppler</code> (macOS).'
+                    + 'PDF receipts render without extra software on Windows and macOS; '
+                    + 'on Linux install poppler-utils: <code>sudo apt-get install poppler-utils</code>.'
                     + '</div>';
             }
         } catch (e) {
@@ -844,15 +853,15 @@ const SettingsPage = {
                 <p class="ai-worker-help">
                     Deploy <code>cloudflare/worker.js</code> in your own
                     Cloudflare account — the real AI credentials live inside
-                    Cloudflare as a Worker secret, not in Slowbooks' database.
-                    Slowbooks only holds the shared Bearer token. See
+                    Cloudflare as a Worker secret, not in Ark CPA's database.
+                    Ark CPA only holds the shared Bearer token. See
                     <code>cloudflare/README.md</code> for the 5-minute setup.
                 </p>
                 <label class="form-field">
                     <span>Worker URL <em class="ai-worker-required">(https only)</em></span>
                     <input type="url" id="ai-settings-worker-url"
                            value="${escapeHtml(cfg.worker_url || '')}"
-                           placeholder="https://slowbooks-ai.yourname.workers.dev/v1/chat/completions"
+                           placeholder="https://ark-cpa-ai.yourname.workers.dev/v1/chat/completions"
                            autocomplete="off" spellcheck="false">
                 </label>
                 <p class="ai-worker-security">
@@ -866,7 +875,7 @@ const SettingsPage = {
                       style="${needsEndpoint ? '' : 'display:none'}">
                 <legend>Custom OpenAI-Compatible Endpoint</legend>
                 <p class="ai-worker-help">
-                    Point Slowbooks at any OpenAI-compatible chat API on the
+                    Point Ark CPA at any OpenAI-compatible chat API on the
                     public internet — another vendor's <code>/v1</code> base URL,
                     or a gateway you host. <code>/chat/completions</code> is
                     appended automatically if you don't include it. A model on
@@ -1396,4 +1405,3 @@ SettingsPage.toggleEquipment = async function (id, active) {
         SettingsPage.loadEquipment();
     } catch (err) { toast(err.message, 'error'); }
 };
-

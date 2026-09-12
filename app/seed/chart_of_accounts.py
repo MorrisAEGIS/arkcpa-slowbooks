@@ -6,8 +6,18 @@
 
 CHART_OF_ACCOUNTS = [
     # Assets (1000s)
-    {"account_number": "1000", "name": "Checking", "account_type": "asset"},
-    {"account_number": "1010", "name": "Savings", "account_type": "asset"},
+    {
+        "account_number": "1000",
+        "name": "Checking",
+        "account_type": "asset",
+        "bank_kind": "bank",
+    },
+    {
+        "account_number": "1010",
+        "name": "Savings",
+        "account_type": "asset",
+        "bank_kind": "bank",
+    },
     {"account_number": "1100", "name": "Accounts Receivable", "account_type": "asset"},
     {"account_number": "1200", "name": "Undeposited Funds", "account_type": "asset"},
     {"account_number": "1300", "name": "Inventory", "account_type": "asset"},
@@ -22,7 +32,12 @@ CHART_OF_ACCOUNTS = [
     {"account_number": "1700", "name": "Other Assets", "account_type": "asset"},
     # Liabilities (2000s)
     {"account_number": "2000", "name": "Accounts Payable", "account_type": "liability"},
-    {"account_number": "2100", "name": "Credit Card", "account_type": "liability"},
+    {
+        "account_number": "2100",
+        "name": "Credit Card",
+        "account_type": "liability",
+        "bank_kind": "credit_card",
+    },
     {
         "account_number": "2200",
         "name": "Sales Tax Payable",

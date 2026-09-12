@@ -10,6 +10,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Iterable
@@ -49,7 +50,64 @@ def _redacted_args(args: Iterable[str]) -> list[str]:
 
 def _run(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     print("+", " ".join(_redacted_args(args)), flush=True)
-    return subprocess.run(args, check=check, capture_output=True, text=True)
+    result = subprocess.run(args, check=False, capture_output=True, text=True)
+    if check and result.returncode != 0:
+        # Both streams are captured, so a bare CalledProcessError would carry
+        # only the command and the exit code — a transient codesign failure
+        # cost a full rebuild to learn nothing (macbase1, 2.10.0 gate). Print
+        # what the tool said before raising, and keep it on the exception.
+        print(
+            f"! exit {result.returncode}: {' '.join(_redacted_args(args))}", flush=True
+        )
+        if result.stdout:
+            print(
+                result.stdout,
+                end="" if result.stdout.endswith("\n") else "\n",
+                flush=True,
+            )
+        if result.stderr:
+            print(
+                result.stderr,
+                end="" if result.stderr.endswith("\n") else "\n",
+                file=sys.stderr,
+                flush=True,
+            )
+        raise subprocess.CalledProcessError(
+            result.returncode, args, output=result.stdout, stderr=result.stderr
+        )
+    return result
+
+
+# Apple's timestamp service (timestamp.apple.com) blips; codesign then fails
+# with exactly this text and nothing else is wrong (macbase1, 2.10.0 gate:
+# three runs, ~25 minutes each, lost to it). Retry that failure alone — any
+# other signing error surfaces on the first try.
+TIMESTAMP_FAILURE = "A timestamp was expected but was not found"
+SIGN_ATTEMPTS = 3
+SIGN_BACKOFF_SECONDS = (30, 60)
+_sleep = time.sleep
+
+
+def _is_timestamp_failure(exc: subprocess.CalledProcessError) -> bool:
+    return TIMESTAMP_FAILURE in f"{exc.stdout or ''}{exc.stderr or ''}"
+
+
+def _run_signing(*args: str) -> subprocess.CompletedProcess[str]:
+    """codesign --timestamp with a narrow retry (see TIMESTAMP_FAILURE)."""
+    for attempt in range(1, SIGN_ATTEMPTS + 1):
+        try:
+            return _run(*args)
+        except subprocess.CalledProcessError as exc:
+            if not _is_timestamp_failure(exc) or attempt == SIGN_ATTEMPTS:
+                raise
+            delay = SIGN_BACKOFF_SECONDS[min(attempt, len(SIGN_BACKOFF_SECONDS)) - 1]
+            print(
+                f"! timestamp service did not answer (attempt {attempt} of "
+                f"{SIGN_ATTEMPTS}); retrying in {delay}s",
+                flush=True,
+            )
+            _sleep(delay)
+    raise AssertionError("unreachable")
 
 
 def _record_run(
@@ -146,7 +204,7 @@ def _sign(path: Path, identity: str, hardened_runtime: bool) -> None:
     if hardened_runtime:
         command.extend(["--options", "runtime"])
     command.extend(["--sign", identity, str(path)])
-    _run(*command)
+    _run_signing(*command)
 
 
 def _sign_app(app: Path, identity: str) -> None:
@@ -570,7 +628,7 @@ def build_release(
             str(candidate_dmg),
         )
         _clear_xattrs(candidate_dmg)
-        _run(
+        _run_signing(
             "codesign",
             "--force",
             "--timestamp",

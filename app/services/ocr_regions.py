@@ -16,11 +16,14 @@
 # ============================================================================
 
 import io
+import logging
 import re
 import subprocess
 from typing import Optional
 
 from app.services import ocr_service
+
+logger = logging.getLogger(__name__)
 
 # Per-field tesseract configuration: page-segmentation mode + charset.
 # PSM 7 = single text line; PSM 6 = uniform block (merchant names can wrap).
@@ -48,7 +51,10 @@ def _load_image(data: bytes):
         img = Image.open(io.BytesIO(data))
         img.load()
     except Exception as exc:
-        raise RegionError(f"Could not read the stored scan image: {exc}") from exc
+        # RegionError is answered verbatim (400); PIL's text names a BytesIO
+        # object, not the problem (issue #111) — keep it in the log.
+        logger.info("stored scan image unreadable: %r", exc)
+        raise RegionError("Could not read the stored scan image") from exc
     img = ImageOps.exif_transpose(img)  # phone photos carry rotation in EXIF
     return img
 

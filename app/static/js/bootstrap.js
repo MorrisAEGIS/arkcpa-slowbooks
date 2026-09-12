@@ -21,6 +21,45 @@
         });
     }
 
+    // --- Mobile navigation drawer -----------------------------------------
+    // The desktop navigator remains the canonical information architecture.
+    // On touch-sized screens it becomes a drawer so the active ledger and
+    // working surface retain the full viewport without hiding any route.
+    const mobileNav = document.getElementById('mobile-nav-toggle');
+    const mobileBackdrop = document.getElementById('mobile-nav-backdrop');
+    const sidebar = document.getElementById('sidebar');
+    const mobileQuery = window.matchMedia('(max-width: 767px)');
+
+    function setMobileNav(open) {
+        const active = mobileQuery.matches && open;
+        document.body.classList.toggle('mobile-nav-open', active);
+        if (mobileNav) {
+            mobileNav.setAttribute('aria-expanded', String(active));
+            mobileNav.setAttribute('aria-label', active ? 'Close navigation' : 'Open navigation');
+        }
+        if (mobileBackdrop) mobileBackdrop.hidden = !active;
+        if (sidebar) {
+            sidebar.inert = mobileQuery.matches && !active;
+            sidebar.setAttribute('aria-hidden', String(mobileQuery.matches && !active));
+        }
+    }
+
+    if (mobileNav) mobileNav.addEventListener('click', () => {
+        setMobileNav(!document.body.classList.contains('mobile-nav-open'));
+    });
+    if (mobileBackdrop) mobileBackdrop.addEventListener('click', () => setMobileNav(false));
+    if (sidebar) sidebar.addEventListener('click', event => {
+        if (event.target.closest('.nav-link')) setMobileNav(false);
+    });
+    mobileQuery.addEventListener('change', () => setMobileNav(false));
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && document.body.classList.contains('mobile-nav-open')) {
+            setMobileNav(false);
+            if (mobileNav) mobileNav.focus();
+        }
+    });
+    setMobileNav(false);
+
     // --- What's new on the splash ------------------------------------------
     // /static/whats-new.json ships with the build (edited at release time,
     // see docs/release-checklist.md); /health gives the running version.
@@ -67,7 +106,7 @@
     // reload bounces the user back to the login screen.
     const logout = document.getElementById('logout-btn');
     if (logout) logout.addEventListener('click', async () => {
-        if (!confirm('Sign out of Slowbooks?')) return;
+        if (!confirm('Sign out of Ark CPA?')) return;
         try {
             await API.post('/auth/logout', {});
         } catch (_err) {

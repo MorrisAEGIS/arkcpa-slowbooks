@@ -2,10 +2,15 @@
 .github
 .claude
 .env
+.slowbooks-master.key
+.slowbooks-session.key
+*.db
+*.sqlite3
 __pycache__
 *.pyc
 *.pyo
 backups/
+app/static/uploads/
 screenshots/
 docs/
 *.md
@@ -16,4 +21,3 @@ venv/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
-

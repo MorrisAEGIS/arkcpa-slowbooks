@@ -14,7 +14,7 @@ from pydantic import Field
 from app.schemas.common import StrictModel
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_control_db
 from app.models.api_tokens import ApiToken
 from app.models.users import ROLE_ADMIN, VALID_ROLES
 from app.services.api_token_service import generate_token, hash_token
@@ -51,13 +51,15 @@ class TokenUpdate(StrictModel):
 
 
 @router.get("")
-def list_tokens(request: Request, db: Session = Depends(get_db)):
+def list_tokens(request: Request, db: Session = Depends(get_control_db)):
     _require_admin(request)
     return [_out(t) for t in db.query(ApiToken).order_by(ApiToken.id).all()]
 
 
 @router.post("", status_code=201)
-def create_token(payload: TokenCreate, request: Request, db: Session = Depends(get_db)):
+def create_token(
+    payload: TokenCreate, request: Request, db: Session = Depends(get_control_db)
+):
     _require_admin(request)
     label = payload.label.strip()
     if payload.role not in VALID_ROLES:
@@ -83,7 +85,10 @@ def create_token(payload: TokenCreate, request: Request, db: Session = Depends(g
 
 @router.put("/{token_id}")
 def update_token(
-    token_id: int, payload: TokenUpdate, request: Request, db: Session = Depends(get_db)
+    token_id: int,
+    payload: TokenUpdate,
+    request: Request,
+    db: Session = Depends(get_control_db),
 ):
     _require_admin(request)
     row = db.query(ApiToken).filter(ApiToken.id == token_id).first()

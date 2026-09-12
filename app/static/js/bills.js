@@ -346,7 +346,7 @@ const BillsPage = {
         const [vendors, bills, accounts] = await Promise.all([
             API.get('/vendors?active_only=true'),
             API.get('/bills?status=unpaid'),
-            API.get('/accounts?account_type=asset'),
+            API.get('/accounts?bank=1&active_only=true'),
         ]);
         const partials = await API.get('/bills?status=partial');
         const openBills = [...bills, ...partials];

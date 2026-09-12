@@ -17,6 +17,9 @@ class OcrStatusResponse(BaseModel):
     languages: Optional[list[str]] = None
     # Which engine answers scans on this platform: tesseract | vision | winrt
     engine: str = "tesseract"
+    # How PDFs become images here: windows | macos | poppler | None (images
+    # still scan; the Settings row says what to install for PDFs)
+    pdf: Optional[str] = None
 
 
 class OcrWordBox(BaseModel):

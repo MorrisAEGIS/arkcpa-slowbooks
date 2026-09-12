@@ -196,7 +196,7 @@ def test_bank_rules_auto_apply_on_csv_import(db_session):
         .filter(BankTransaction.payee == "COFFEE SHOP")
         .all()
     )
-    assert all(t.match_status == "auto" for t in coffee)
+    assert all(t.match_status == "unmatched" for t in coffee)  # categorised, not posted
     assert all(t.category_account_id == expense.id for t in coffee)
 
 

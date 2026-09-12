@@ -15,7 +15,7 @@ pass, and the per-integration setup guides ([Stripe](setup-stripe.md),
 ## Invoicing & Payments (Accounts Receivable)
 - **Invoices** — Create, edit, duplicate, void, mark as sent, email as PDF. Auto-numbering, auto due-date from terms, dynamic line items with running totals. Print/PDF generation via WeasyPrint. Inline customer creation from invoice form
 - **Sales Receipts** — One-screen invoice + payment for point-of-sale style sales where the customer pays on the spot. Payment method, deposit-to account, and line items on a single form; posts both documents and their journal entries atomically. Imports from QuickBooks Desktop (IIF `CASH SALE`) and QuickBooks Online (SalesReceipt API)
-- **Receipt scanning (Tier 2 OCR)** — A Scan Receipt button on the Sales Receipt and Bill forms uploads a receipt image or PDF and pre-fills the form from local OCR: date, merchant/vendor hint, and the grand total as a single line, with detected tax split out (tax-rate field on sales receipts; noted in Bill Notes). The operator always reviews before saving, and the source file attaches to the document. Tesseract + poppler-utils are user-installed system binaries called via subprocess — zero new Python dependencies, never bundled, graceful "install Tesseract to enable scanning" degrade. Deterministic parsing, no AI. Spec: [docs/design/receipt-intake-spec.md](design/receipt-intake-spec.md)
+- **Receipt scanning (Tier 2 OCR)** — A Scan Receipt button on the Sales Receipt and Bill forms uploads a receipt image or PDF and pre-fills the form from local OCR: date, merchant/vendor hint, and the grand total as a single line, with detected tax split out (tax-rate field on sales receipts; noted in Bill Notes). The operator always reviews before saving, and the source file attaches to the document. On Windows and macOS the OS engine reads the text and the OS renders PDF pages, so nothing is installed; on Linux, Tesseract + poppler-utils are user-installed system binaries called via subprocess — zero new Python dependencies, never bundled, graceful "install Tesseract to enable scanning" degrade. Deterministic parsing, no AI. Spec: [docs/design/receipt-intake-spec.md](design/receipt-intake-spec.md)
 - **Estimates** — Full estimate workflow with convert-to-invoice (deep-copies all fields and line items). Inline customer creation from estimate form
 - **Payments** — Record payments with allocation across multiple invoices. Auto-updates invoice balances and status (draft/sent/partial/paid). Void payments with reversing journal entries
 - **Recurring Invoices** — Schedule automatic invoice generation (weekly/monthly/quarterly/yearly) with manual "Generate Now" or cron script
@@ -35,6 +35,7 @@ pass, and the per-integration setup guides ([Stripe](setup-stripe.md),
 - **Manual Journal Entries** — Full CRUD for manual journal entries with dynamic line rows, running debit/credit totals, balance indicator, and void with reversing entries
 - **Auto Journal Entries** — Every invoice, payment, bill, and payroll run automatically creates balanced journal entries. Void creates reversing entries
 - **Chart of Accounts** — 39+ seeded accounts (Contractor template), 6 account types (asset, liability, equity, income, COGS, expense)
+- **Control accounts** — Fifteen accounts are found by their number when a document posts: 1000 Checking, 1100 Accounts Receivable, 1200 Undeposited Funds, 1300 Inventory, 2000 Accounts Payable, 2100 Credit Card, 2200 Sales Tax Payable, 3200 Retained Earnings, 4000 Service Income, 4800 Late Fee Income, 5000 Cost of Goods Sold, 5900 Inventory Adjustments, 6000 Advertising & Marketing, 6120 Payroll Tax Expense, 6150 Employee Benefits Expense. **You can rename any of them**; changing the number or the type is refused, because a document that cannot find its control account would have nowhere to post. Every other account, seeded or not, can be renumbered freely. A posting that cannot resolve a control account fails with a 409 naming it and writes nothing — it never saves a document that skipped the ledger (issue #119)
 - **Closing Date Enforcement** — Prevent modifications to transactions before a configurable closing date with optional password protection
 - **Audit Log** — Automatic logging of all create/update/delete operations with old/new value tracking via SQLAlchemy event hooks
 - **Account Balances** — Updated in real-time as transactions post
@@ -48,13 +49,15 @@ pass, and the per-integration setup guides ([Stripe](setup-stripe.md),
 Tax calculations are approximate — verify with a tax professional. Full module reference (models, routes, UI pages, pending items) lives at [docs/payroll-hr-module.md](payroll-hr-module.md).
 
 ## Banking
-- **Bank Accounts** — Register view with deposits and withdrawals
-- **Check Register** — Filtered bank transaction view with running balance, payment/deposit columns, sorted by date
+The register is the ledger account (v2.10, issue #114). Full guide: [docs/banking.md](banking.md).
+- **Bank and credit-card accounts** — chart accounts flagged `bank` / `credit_card`; every paid-from, deposit-to and pay-from picker lists exactly those
+- **Register** — every posting on the account with a running balance (a card shows the amount owed), payee, source link, cleared/reconciled marks; a register entry posts (DR category / CR account for money out, the reverse for money in)
+- **Transfers** — DR to / CR from between bank and card accounts; paying a card is a transfer. Voidable
 - **Make Deposits** — Move funds from Undeposited Funds to a bank account. Select pending payments, choose target account, create deposit
-- **Credit Card Charges** — Enter credit card charges as expenses (DR Expense, CR Credit Card Payable). Dedicated charge entry form with vendor, amount, and expense category
+- **Credit Card Charges** — DR Expense, CR the card you pick (default 2100). Voidable
 - **Check Printing** — Generate check PDFs in standard 3-per-page format (stub/stub/check) with payee, amount in words, memo, and signature line
-- **Bank Reconciliation** — Full workflow: enter statement balance, toggle cleared items, validate difference = $0, complete
-- **OFX/QFX Import** — Import bank transactions from OFX/QFX files with FITID dedup, preview before import, auto-match by amount/date
+- **Bank feeds and file imports (SimpleFIN, OFX/QFX, Chase/PayPal CSV)** — a review queue: each statement line is auto-matched to the posting the ledger already has (same amount and side within five days, check number narrows, ambiguity waits), or added with a category, or excluded. Bank rules suggest categories and never post
+- **Bank Reconciliation** — over the ledger's lines: beginning balance from the prior statement, tick cleared lines (matched statement lines arrive cleared), difference must be $0, completing locks the lines
 
 ## Reports & Tax
 - **QuickBooks-style period selector** — All reports support preset periods (This Month, This Quarter, This/Last Year, Year to Date, Custom Date) with live refresh
@@ -432,7 +435,7 @@ All endpoints under `/api/`. Swagger docs at `/docs`. 300+ routes across 50 rout
 | `/api/settings` | GET, PUT | Company settings |
 | `/api/settings/test-email` | POST | Send SMTP test email |
 | `/api/search` | GET | Unified search across all entities |
-| `/api/accounts` | GET, POST, PUT, DELETE | Chart of Accounts CRUD |
+| `/api/accounts` | GET, POST, PUT, DELETE | Chart of Accounts CRUD. `?bank=1` filters to bank/card accounts. PUT refuses the number or type of a control account (400) and DELETE refuses a system account |
 | `/api/customers` | GET, POST, PUT, DELETE | Customer management |
 | `/api/vendors` | GET, POST, PUT, DELETE | Vendor management |
 | `/api/items` | GET, POST, PUT, DELETE | Items & services |
@@ -448,9 +451,14 @@ All endpoints under `/api/`. Swagger docs at `/docs`. 300+ routes across 50 rout
 | `/api/estimates/{id}/print-preview` | GET | Browser print preview (HTML) |
 | `/api/payments` | GET, POST | Record payments with invoice allocation |
 | `/api/payments/{id}/void` | POST | Void payment with reversing journal entry |
-| `/api/banking/accounts` | GET, POST, PUT | Bank account management |
-| `/api/banking/transactions` | GET, POST | Bank register entries |
-| `/api/banking/reconciliations` | GET, POST | Reconciliation sessions |
+| `/api/banking/overview` | GET | Bank and card accounts with ledger balances, feed, to-review count |
+| `/api/banking/accounts` | GET, POST, PUT | Bank feeds (statement identity of a ledger account); `opening_balance` posts; `…/post-legacy-balance` |
+| `/api/banking/transactions` | GET, POST | GET: statement lines (review queue). POST: a register entry — posts a journal entry |
+| `/api/banking/transactions/{id}/candidates · match · unmatch · add · exclude · restore` | GET, POST | Review-queue actions |
+| `/api/banking/accounts/{id}/feed/add-all · auto-match` | POST | Bulk review actions |
+| `/api/banking/entries/{id}/void` | POST | Void a register entry |
+| `/api/banking/reconciliations` | GET, POST, DELETE | Reconciliation sessions over ledger lines (`…/{id}/transactions`, `toggle/{line_id}`, `complete`) |
+| `/api/transfers` | GET, POST | Transfers between bank/card accounts (`…/{id}/void`) |
 
 ### Accounts Payable
 | Endpoint | Methods | Description |
@@ -488,10 +496,10 @@ All payroll, HR, tax-form, and self-service portal endpoints are documented with
 ### Banking & Deposits
 | Endpoint | Methods | Description |
 |----------|---------|-------------|
-| `/api/banking/check-register` | GET | Check register with running balance |
+| `/api/banking/check-register` | GET | The register: ledger lines on a bank/card account with running balance, links, cleared state |
 | `/api/deposits/pending` | GET | Pending deposits in Undeposited Funds |
 | `/api/deposits` | GET, POST | Create deposits (move funds to bank) |
-| `/api/cc-charges` | GET, POST | Credit card charge entry |
+| `/api/cc-charges` | GET, POST | Credit card charge entry (`card_account_id`, `…/{id}/void`) |
 | `/api/checks/print` | GET | Generate check PDF (3-per-page format) |
 
 ### Journal Entries

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "Slowbooks Pro 2026 — Starting up..."
+echo "Ark CPA — Starting up..."
 
 # Wait for PostgreSQL (max 30 seconds)
 echo "Waiting for PostgreSQL..."
@@ -19,6 +19,16 @@ echo "PostgreSQL is ready."
 # Run migrations
 echo "Running database migrations..."
 alembic upgrade head
+
+# The control database only stores identities and orchestration state. Every
+# registered legal entity is a separate ledger database and must reach the same
+# migration head before any worker accepts traffic. One failure blocks startup.
+case "${ARKCPA_ENTITY_MODE:-false}" in
+  1|true|TRUE|yes|YES)
+    echo "Migrating Ark CPA entity ledgers..."
+    python scripts/migrate_arkcpa_entities.py
+    ;;
+esac
 
 # Seed chart of accounts (idempotent — skips if accounts exist)
 echo "Seeding database..."
@@ -43,7 +53,7 @@ if [ -z "${SKIP_BOOT_SELFCHECK:-}" ] && python -c "import pytest" 2>/dev/null; t
     fi
 fi
 
-echo "Starting Slowbooks Pro 2026 on port ${APP_PORT:-3001}..."
+echo "Starting Ark CPA on port ${APP_PORT:-3001}..."
 # Multi-worker production mode.
 # uvloop + httptools come from uvicorn[standard], explicit for clarity.
 # APP_WORKERS defaults to 2 (tunable via docker-compose env or .env).

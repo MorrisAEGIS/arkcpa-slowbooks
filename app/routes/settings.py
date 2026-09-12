@@ -206,8 +206,8 @@ def test_email(db: Session = Depends(get_db)):
         sent = send_email(
             db=db,
             to_email=settings.get("smtp_from_email") or settings.get("smtp_user", ""),
-            subject="Slowbooks Pro 2026 — Test Email",
-            html_body="<p>This is a test email from Slowbooks Pro 2026. SMTP is configured correctly.</p>",
+            subject="Ark CPA — Test Email",
+            html_body="<p>This is a test email from Ark CPA. SMTP is configured correctly.</p>",
             entity_type="settings_test",
         )
         if not sent:

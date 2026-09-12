@@ -78,6 +78,7 @@ def ocr_status(db: Session = Depends(get_db)):
         version=info["version"],
         languages=info["languages"] or None,
         engine=info["engine"],
+        pdf=ocr_service.tesseract_info().get("pdf"),
     )
 
 
@@ -110,7 +111,8 @@ async def scan_receipt(
     if reason:
         return OcrReceiptResponse(ocr_available=False, message=reason)
 
-    # Rasterize PDFs via poppler-utils (page 1, per spec §3); images pass
+    # Rasterize PDFs (page 1, per spec §3; native on Windows/macOS, poppler
+    # elsewhere — pdf_raster.py); images pass
     # through as-is — Tesseract decodes PNG/JPEG/WebP natively, so no image
     # library is involved on the Python side.
     multi_page = False
