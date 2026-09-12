@@ -26,9 +26,11 @@ from app.services.arkcpa_controller import (
     ControllerConfig,
     _entity_context,
     call_agent,
+    call_bookkeeper_proposal,
     post_candidate_if_eligible,
     run_evidence_bookkeeping,
 )
+from app.services.arkcpa_agents import PROMPT_VERSION, system_prompt
 from app.services.arkcpa_policy import evaluate_candidate
 from app.services.arkcpa_rules import POLICY_VERSION
 from app.services.auth import hash_password
@@ -244,6 +246,72 @@ def test_agent_call_requires_gateway_model_family_attestation():
                 context=context,
                 client=model_client,
             )
+
+
+def test_governed_prompt_names_every_required_decision_key():
+    prompt = system_prompt("controller")
+
+    assert PROMPT_VERSION == "arkcpa-agents-2026-09-12.2"
+    for key in ("decision", "confidence", "rationale", "checks"):
+        assert f'"{key}"' in prompt
+    assert "Do not use a key named" in prompt
+    assert '"fields"' in prompt
+
+
+def test_gpt_oss_bookkeeper_requests_use_zero_thinking_budget():
+    requests = []
+    decision = {
+        "decision": "reject",
+        "confidence": 1,
+        "rationale": "No verified evidence.",
+        "checks": {},
+    }
+    proposal = {
+        "no_candidate": True,
+        "candidate": None,
+        "confidence": 1,
+        "rationale": "No verified evidence.",
+    }
+    responses = iter((decision, proposal))
+
+    def handler(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            json={
+                "model": "ark-coder-oss",
+                "model_family": "gpt-oss",
+                "choices": [{"message": {"content": json.dumps(next(responses))}}],
+            },
+        )
+
+    config = _config(
+        bookkeeper_model="ark-coder-oss",
+        bookkeeper_family="gpt-oss",
+    )
+    with httpx.Client(transport=httpx.MockTransport(handler)) as model_client:
+        call_agent(
+            config,
+            role="bookkeeper",
+            model=config.bookkeeper_model,
+            context={"contract": {"raw_documents_allowed": False}},
+            client=model_client,
+        )
+        call_bookkeeper_proposal(
+            config,
+            context={"contract": {"raw_documents_allowed": False}},
+            client=model_client,
+        )
+
+    assert [request["thinking_budget_tokens"] for request in requests] == [0, 0]
+    assert [request["reasoning_format"] for request in requests] == ["none", "none"]
+
+
+def test_controller_default_uses_independent_max_context_route(monkeypatch):
+    monkeypatch.setenv("ARKCPA_AI_BASE_URL", "http://localhost:4000/v1")
+    monkeypatch.delenv("ARKCPA_CONTROLLER_MODEL", raising=False)
+
+    assert ControllerConfig.from_env().controller_model == "ark-brain-max"
 
 
 def _approval(candidate, role, family):

@@ -84,7 +84,9 @@ class ControllerConfig:
             api_key=os.getenv("ARKCPA_AI_API_KEY", "").strip(),
             bookkeeper_model=os.getenv("ARKCPA_BOOKKEEPER_MODEL", "ark-coder-oss").strip(),
             bookkeeper_family=os.getenv("ARKCPA_BOOKKEEPER_FAMILY", "gpt-oss").strip(),
-            controller_model=os.getenv("ARKCPA_CONTROLLER_MODEL", "ark-brain").strip(),
+            controller_model=os.getenv(
+                "ARKCPA_CONTROLLER_MODEL", "ark-brain-max"
+            ).strip(),
             controller_family=os.getenv(
                 "ARKCPA_CONTROLLER_FAMILY", "nemotron3-super"
             ).strip(),
@@ -304,6 +306,13 @@ def call_agent(
         "seed": 42,
         "max_tokens": 1200,
     }
+    if role == "bookkeeper" and config.bookkeeper_family.strip().lower() == "gpt-oss":
+        # llama.cpp's Harmony parser can reject otherwise valid GPT-OSS JSON
+        # after an unconstrained reasoning preamble. Disabling extraction and
+        # using a zero budget keep the visible response in the governed JSON
+        # channel without weakening the application's strict parser.
+        payload["reasoning_format"] = "none"
+        payload["thinking_budget_tokens"] = 0
     owns_client = client is None
     if client is None:
         client = httpx.Client(
@@ -350,6 +359,9 @@ def call_bookkeeper_proposal(
         "seed": 42,
         "max_tokens": 1600,
     }
+    if config.bookkeeper_family.strip().lower() == "gpt-oss":
+        payload["reasoning_format"] = "none"
+        payload["thinking_budget_tokens"] = 0
     owns_client = client is None
     if client is None:
         client = httpx.Client(

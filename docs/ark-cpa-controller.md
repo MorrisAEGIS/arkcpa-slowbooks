@@ -129,6 +129,14 @@ draft-only. Any adapter promotion is a protected action. Route labels are not
 proof of model independence; the runtime families in the completion receipts
 must differ.
 
+The default Bookkeeper route is `ark-coder-oss` (`gpt-oss`) with a bounded
+zero-thinking request contract so Harmony parsing cannot turn valid JSON into
+an upstream 500. The default Controller route is `ark-brain-max`
+(`nemotron3-super`) because the max-context lane is independently served and
+must finish inside the Controller timeout. LiteLLM must attest the selected
+deployment family in `X-Ark-Model-Family`; a route name or fallback response by
+itself is not accepted.
+
 Accounting state is authoritative in Ark CPA PostgreSQL and Ark Files. Approved
 abstractions may be published to the existing ARK Memory Fabric; raw financial
 documents, credentials, exact legal entity names, and full extracted text may

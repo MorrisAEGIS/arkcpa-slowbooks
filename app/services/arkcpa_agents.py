@@ -7,7 +7,7 @@ import re
 
 from app.services.arkcpa_rules import POLICY_VERSION
 
-PROMPT_VERSION = "arkcpa-agents-2026-09-10.1"
+PROMPT_VERSION = "arkcpa-agents-2026-09-12.2"
 _FORBIDDEN_CONTEXT_KEYS = {
     "document_bytes",
     "raw_document",
@@ -59,6 +59,12 @@ DECISION_SCHEMA = {
         "checks": {"type": "object"},
     },
 }
+
+DECISION_RETURN_CONTRACT = """Return only one JSON object with exactly these
+four keys and no others: \"decision\" (one of \"approve\", \"reject\", or
+\"escalate\"), \"confidence\" (a number from 0 through 1), \"rationale\" (a
+non-empty string), and \"checks\" (an object). Do not use a key named
+\"fields\" and do not wrap the JSON in Markdown."""
 
 
 def _sanitize(value, key: str | None = None):
@@ -116,7 +122,9 @@ def context_fingerprint(context: dict) -> str:
 
 def system_prompt(agent_role: str) -> str:
     if agent_role == "bookkeeper":
-        return BOOKKEEPER_SYSTEM_PROMPT
-    if agent_role == "controller":
-        return CONTROLLER_SYSTEM_PROMPT
-    raise ValueError("Unknown Ark CPA agent role")
+        role_prompt = BOOKKEEPER_SYSTEM_PROMPT
+    elif agent_role == "controller":
+        role_prompt = CONTROLLER_SYSTEM_PROMPT
+    else:
+        raise ValueError("Unknown Ark CPA agent role")
+    return f"{role_prompt}\n\n{DECISION_RETURN_CONTRACT}"
