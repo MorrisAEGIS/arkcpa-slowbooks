@@ -95,9 +95,7 @@ def test_ark_files_dry_run_is_non_mutating(tmp_path):
 def test_existing_entity_is_updated_and_protected_owner_is_reconciled(
     db_session, tmp_path, monkeypatch
 ):
-    jay = User(
-        username="jay", display_name="Jay", password_hash="hash", role="admin"
-    )
+    jay = User(username="jay", display_name="Jay", password_hash="hash", role="admin")
     maesa = User(
         username="maesa", display_name="Maesa", password_hash="hash", role="admin"
     )

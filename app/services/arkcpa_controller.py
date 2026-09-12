@@ -82,7 +82,9 @@ class ControllerConfig:
         return cls(
             base_url=base_url,
             api_key=os.getenv("ARKCPA_AI_API_KEY", "").strip(),
-            bookkeeper_model=os.getenv("ARKCPA_BOOKKEEPER_MODEL", "ark-coder-oss").strip(),
+            bookkeeper_model=os.getenv(
+                "ARKCPA_BOOKKEEPER_MODEL", "ark-coder-oss"
+            ).strip(),
             bookkeeper_family=os.getenv("ARKCPA_BOOKKEEPER_FAMILY", "gpt-oss").strip(),
             controller_model=os.getenv(
                 "ARKCPA_CONTROLLER_MODEL", "ark-brain-max"
@@ -118,7 +120,9 @@ class ControllerConfig:
         if not self.bookkeeper_family or not self.controller_family:
             raise ValueError("Both Ark CPA model families must be configured")
         if self.bookkeeper_family.lower() == self.controller_family.lower():
-            raise ValueError("Bookkeeper and Controller must use independent model families")
+            raise ValueError(
+                "Bookkeeper and Controller must use independent model families"
+            )
         if not 1 <= self.timeout_seconds <= 180:
             raise ValueError("Ark CPA AI timeout must be between 1 and 180 seconds")
 
@@ -135,7 +139,10 @@ def _decision_json(raw: str) -> dict:
         raise ValueError("Agent response does not match the governed decision schema")
     if data["decision"] not in {"approve", "reject", "escalate"}:
         raise ValueError("Agent returned an invalid decision")
-    if not isinstance(data["rationale"], str) or not 1 <= len(data["rationale"]) <= 20000:
+    if (
+        not isinstance(data["rationale"], str)
+        or not 1 <= len(data["rationale"]) <= 20000
+    ):
         raise ValueError("Agent rationale is missing or too long")
     if not isinstance(data["checks"], dict):
         raise ValueError("Agent checks must be an object")
@@ -167,7 +174,10 @@ def _proposal_json(raw: str) -> dict:
         raise ValueError("Bookkeeper response does not match the proposal schema")
     if not isinstance(data["no_candidate"], bool):
         raise ValueError("Bookkeeper no_candidate flag must be boolean")
-    if not isinstance(data["rationale"], str) or not 1 <= len(data["rationale"]) <= 20000:
+    if (
+        not isinstance(data["rationale"], str)
+        or not 1 <= len(data["rationale"]) <= 20000
+    ):
         raise ValueError("Bookkeeper rationale is missing or too long")
     try:
         confidence = Decimal(str(data["confidence"]))
@@ -195,7 +205,10 @@ def _proposal_json(raw: str) -> dict:
         date.fromisoformat(candidate["transaction_date"])
     except (TypeError, ValueError) as exc:
         raise ValueError("Bookkeeper candidate date must be YYYY-MM-DD") from exc
-    if not isinstance(candidate["description"], str) or not candidate["description"].strip():
+    if (
+        not isinstance(candidate["description"], str)
+        or not candidate["description"].strip()
+    ):
         raise ValueError("Bookkeeper candidate description is required")
     if len(candidate["description"]) > 1000:
         raise ValueError("Bookkeeper candidate description is too long")
@@ -207,7 +220,10 @@ def _proposal_json(raw: str) -> dict:
         raise ValueError("Bookkeeper candidate currency is invalid")
     if not isinstance(candidate["tax_context"], dict):
         raise ValueError("Bookkeeper tax context must be an object")
-    if not isinstance(candidate["lines"], list) or not 2 <= len(candidate["lines"]) <= 200:
+    if (
+        not isinstance(candidate["lines"], list)
+        or not 2 <= len(candidate["lines"]) <= 200
+    ):
         raise ValueError("Bookkeeper candidate must contain two to 200 lines")
     clean_lines = []
     for line in candidate["lines"]:
@@ -276,7 +292,11 @@ def _assistant_envelope(
         raise ValueError("Ark AI gateway did not attest the expected model family")
     return content, {
         "model": returned_model.strip(),
-        "family": returned_family.strip() if isinstance(returned_family, str) else expected_family,
+        "family": (
+            returned_family.strip()
+            if isinstance(returned_family, str)
+            else expected_family
+        ),
     }
 
 
@@ -327,7 +347,9 @@ def call_agent(
         raw, identity = _assistant_envelope(
             response,
             expected_family=(
-                config.bookkeeper_family if role == "bookkeeper" else config.controller_family
+                config.bookkeeper_family
+                if role == "bookkeeper"
+                else config.controller_family
             ),
             require_family_proof=config.require_gateway_family_proof,
         )
@@ -353,7 +375,10 @@ def call_bookkeeper_proposal(
         "model": config.bookkeeper_model,
         "messages": [
             {"role": "system", "content": BOOKKEEPER_PROPOSAL_PROMPT},
-            {"role": "user", "content": json.dumps(context, sort_keys=True, separators=(",", ":"))},
+            {
+                "role": "user",
+                "content": json.dumps(context, sort_keys=True, separators=(",", ":")),
+            },
         ],
         "temperature": 0,
         "seed": 42,
@@ -391,7 +416,9 @@ def call_bookkeeper_proposal(
 def _entity_context(entity: ArkEntity) -> dict:
     profile = entity.profile if isinstance(entity.profile, dict) else {}
     return {
-        "entity_ref": sha256(f"{entity.id}:{entity.slug}".encode("utf-8")).hexdigest()[:16],
+        "entity_ref": sha256(f"{entity.id}:{entity.slug}".encode("utf-8")).hexdigest()[
+            :16
+        ],
         "entity_type": entity.entity_type,
         "jurisdiction": entity.jurisdiction,
         "currency": entity.currency,
@@ -399,9 +426,7 @@ def _entity_context(entity: ArkEntity) -> dict:
         "status": entity.status,
         "facts_status": entity.facts_status,
         "profile": {
-            key: profile[key]
-            for key in sorted(_AGENT_PROFILE_KEYS)
-            if key in profile
+            key: profile[key] for key in sorted(_AGENT_PROFILE_KEYS) if key in profile
         },
     }
 
@@ -435,7 +460,10 @@ def _chart(ledger_db: Session) -> list[dict]:
             "type": row.account_type.value,
             "active": bool(row.is_active),
         }
-        for row in ledger_db.query(Account).filter(Account.is_active).order_by(Account.id).all()
+        for row in ledger_db.query(Account)
+        .filter(Account.is_active)
+        .order_by(Account.id)
+        .all()
     ]
 
 
@@ -546,7 +574,13 @@ def run_candidate_review(
     entity = control_db.get(ArkEntity, candidate.entity_id)
     evidence = control_db.get(ArkEvidence, candidate.evidence_id)
     if entity is None or evidence is None:
-        return _block_run(control_db, run, candidate.entity_id, "missing_context", "Entity or evidence is missing")
+        return _block_run(
+            control_db,
+            run,
+            candidate.entity_id,
+            "missing_context",
+            "Entity or evidence is missing",
+        )
     if evidence.status != "verified" or not evidence.content_hash:
         return _block_run(
             control_db,
@@ -739,8 +773,8 @@ def run_evidence_bookkeeping(
             extracted_facts=facts,
             chart=chart,
         )
-        proposal, proposal_response_hash, bookkeeper_identity = call_bookkeeper_proposal(
-            config, context=bookkeeper_context, client=client
+        proposal, proposal_response_hash, bookkeeper_identity = (
+            call_bookkeeper_proposal(config, context=bookkeeper_context, client=client)
         )
         if proposal["no_candidate"]:
             run.status = "completed"

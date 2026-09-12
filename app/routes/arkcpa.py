@@ -57,7 +57,10 @@ from app.services.arkcpa_rules import (
     obligations_for,
     validate_entity_profile,
 )
-from app.services.arkcpa_tax import refresh_all_authority_sources, seed_authority_sources
+from app.services.arkcpa_tax import (
+    refresh_all_authority_sources,
+    seed_authority_sources,
+)
 from app.services.company_service import create_company
 from app.services.settings_service import set_setting
 
@@ -973,7 +976,8 @@ def run_controller_review(
         raise HTTPException(status_code=404, detail="Entity not found")
     if entity_mode_enabled() and ledger_db.bind.url.database != entity.database_name:
         raise HTTPException(
-            status_code=409, detail="Activate the candidate's entity before agent review"
+            status_code=409,
+            detail="Activate the candidate's entity before agent review",
         )
     result = run_candidate_review(control_db, ledger_db, candidate)
     if result["status"] == "blocked":
@@ -1014,7 +1018,9 @@ def list_controller_runs(
                 "summary": row.summary,
                 "error_code": row.error_code,
                 "started_at": row.started_at.isoformat(),
-                "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+                "completed_at": (
+                    row.completed_at.isoformat() if row.completed_at else None
+                ),
             }
             for row in runs
         ],
@@ -1240,7 +1246,9 @@ def list_authority_sources(request: Request, db: Session = Depends(get_control_d
         raise HTTPException(status_code=403, detail="Ark CPA entity access required")
     seed_authority_sources(db)
     sources = db.query(ArkAuthoritySource).order_by(ArkAuthoritySource.code).all()
-    proposals = db.query(ArkRuleProposal).order_by(ArkRuleProposal.id.desc()).limit(250).all()
+    proposals = (
+        db.query(ArkRuleProposal).order_by(ArkRuleProposal.id.desc()).limit(250).all()
+    )
     return {
         "automatic_policy_change": False,
         "sources": [
@@ -1252,9 +1260,9 @@ def list_authority_sources(request: Request, db: Session = Depends(get_control_d
                 "authority_level": row.authority_level,
                 "url": row.url,
                 "enabled": row.enabled,
-                "last_checked_at": row.last_checked_at.isoformat()
-                if row.last_checked_at
-                else None,
+                "last_checked_at": (
+                    row.last_checked_at.isoformat() if row.last_checked_at else None
+                ),
                 "current_hash": (
                     db.query(ArkSourceSnapshot.content_hash)
                     .filter_by(source_id=row.id, status="current")
@@ -1331,7 +1339,9 @@ def create_workpaper(
     if data.obligation_id is not None:
         obligation = db.get(ArkComplianceObligation, data.obligation_id)
         if obligation is None or obligation.entity_id != entity_id:
-            raise HTTPException(status_code=404, detail="Obligation not found for entity")
+            raise HTTPException(
+                status_code=404, detail="Obligation not found for entity"
+            )
     evidence = (
         db.query(ArkEvidence)
         .filter(ArkEvidence.id.in_(data.evidence_ids or [-1]))

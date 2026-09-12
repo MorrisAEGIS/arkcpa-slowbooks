@@ -97,7 +97,10 @@ def _validate(item: dict) -> None:
         raise ValueError("Invalid entity status")
     if posting_mode not in {"draft_only", "assisted", "autopost_ordinary", "frozen"}:
         raise ValueError("Invalid posting mode")
-    if item.get("status", "active") == "dormant" and posting_mode == "autopost_ordinary":
+    if (
+        item.get("status", "active") == "dormant"
+        and posting_mode == "autopost_ordinary"
+    ):
         raise ValueError("Dormant entities cannot enable autonomous posting")
     if item.get("facts_status", "incomplete") not in {"incomplete", "verified", "hold"}:
         raise ValueError("Invalid facts status")
@@ -182,7 +185,9 @@ def _provision(db, item: dict, root: Path, apply: bool) -> dict:
             f"Ark CPA {item['entity_type']}",
         )
         if not result.get("success"):
-            raise RuntimeError(result.get("error", "Ledger database provisioning failed"))
+            raise RuntimeError(
+                result.get("error", "Ledger database provisioning failed")
+            )
         entity = ArkEntity(slug=item["slug"], database_name=item["database_name"])
         db.add(entity)
         result_status = "created"
@@ -219,9 +224,9 @@ def _provision(db, item: dict, root: Path, apply: bool) -> dict:
     # The config is authoritative for the protected gate. Preserve any
     # unlisted user's ordinary access, but ensure only the configured human
     # can approve filings, payments, credentials, close, payroll, or promotion.
-    db.query(ArkEntityAccess).filter(
-        ArkEntityAccess.entity_id == entity.id
-    ).update({ArkEntityAccess.protected_approver: False})
+    db.query(ArkEntityAccess).filter(ArkEntityAccess.entity_id == entity.id).update(
+        {ArkEntityAccess.protected_approver: False}
+    )
     for username, grant in grants.items():
         access = (
             db.query(ArkEntityAccess)

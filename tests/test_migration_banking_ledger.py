@@ -124,9 +124,7 @@ def test_upgrade_flags_bank_accounts_links_feeds_and_remaps_statement_lines(tmp_
         con.execute("SELECT version_num FROM alembic_version").fetchone()[0]
         == "b0c1d2e3f4a5"
     )
-    entity_columns = {
-        row[1] for row in con.execute("PRAGMA table_info(ark_entities)")
-    }
+    entity_columns = {row[1] for row in con.execute("PRAGMA table_info(ark_entities)")}
     assert {"posting_mode", "facts_status", "profile"} <= entity_columns
     assert "protected_approver" in {
         row[1] for row in con.execute("PRAGMA table_info(ark_entity_access)")

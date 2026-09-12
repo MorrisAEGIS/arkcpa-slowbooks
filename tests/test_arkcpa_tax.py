@@ -8,7 +8,9 @@ from app.services.arkcpa_tax import refresh_authority_source, seed_authority_sou
 
 def test_authority_change_creates_unpromoted_rule_proposal(db_session):
     seed_authority_sources(db_session)
-    source = db_session.query(ArkAuthoritySource).filter_by(code="CA_INCOME_TAX_ACT").one()
+    source = (
+        db_session.query(ArkAuthoritySource).filter_by(code="CA_INCOME_TAX_ACT").one()
+    )
     bodies = iter((b"official baseline", b"official amended text"))
 
     def handler(_request):

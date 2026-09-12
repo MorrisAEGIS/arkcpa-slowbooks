@@ -91,7 +91,9 @@ def seed_authority_sources(db: Session) -> int:
     for definition in DEFAULT_AUTHORITY_SOURCES:
         row = db.query(ArkAuthoritySource).filter_by(code=definition["code"]).first()
         if row is None:
-            row = ArkAuthoritySource(**definition, license_note="Official public authority")
+            row = ArkAuthoritySource(
+                **definition, license_note="Official public authority"
+            )
             db.add(row)
             created += 1
         else:
@@ -135,7 +137,10 @@ def fetch_source(url: str, client: httpx.Client | None = None) -> tuple[bytes, d
             verify=True,
             follow_redirects=False,
             trust_env=False,
-            headers={"User-Agent": SOURCE_USER_AGENT, "Accept": "text/html,application/pdf"},
+            headers={
+                "User-Agent": SOURCE_USER_AGENT,
+                "Accept": "text/html,application/pdf",
+            },
         )
     try:
         response = client.get(safe_url)
@@ -231,5 +236,7 @@ def refresh_all_authority_sources(
             source = db.get(ArkAuthoritySource, source.id)
             source.last_checked_at = _now()
             db.commit()
-            results.append({"source": source.code, "status": "failed", "error": str(exc)})
+            results.append(
+                {"source": source.code, "status": "failed", "error": str(exc)}
+            )
     return results

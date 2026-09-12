@@ -152,7 +152,9 @@ def validate_entity_profile(profile: dict) -> dict:
             for key, child in value.items():
                 normalized = re.sub(r"[^a-z0-9]", "", str(key).lower())
                 if any(part in normalized for part in SENSITIVE_PROFILE_KEY_PARTS):
-                    raise ValueError(f"Sensitive entity profile field is forbidden: {key}")
+                    raise ValueError(
+                        f"Sensitive entity profile field is forbidden: {key}"
+                    )
                 walk(child, depth + 1)
         elif isinstance(value, list):
             if len(value) > 100:

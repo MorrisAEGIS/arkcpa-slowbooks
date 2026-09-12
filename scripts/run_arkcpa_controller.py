@@ -14,7 +14,12 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal, entity_session_factory
-from app.models.arkcpa import ArkAgentDecision, ArkEntity, ArkEvidence, ArkPostingCandidate
+from app.models.arkcpa import (
+    ArkAgentDecision,
+    ArkEntity,
+    ArkEvidence,
+    ArkPostingCandidate,
+)
 from app.services.arkcpa_controller import (
     post_candidate_if_eligible,
     run_candidate_review,
@@ -30,7 +35,9 @@ def _args() -> argparse.Namespace:
         "--mode", choices=("daily", "weekly", "monthly", "annual"), default="daily"
     )
     parser.add_argument("--entity", help="Limit the cycle to one entity slug")
-    parser.add_argument("--apply", action="store_true", help="Persist the controller cycle")
+    parser.add_argument(
+        "--apply", action="store_true", help="Persist the controller cycle"
+    )
     parser.add_argument(
         "--allow-posting",
         action="store_true",
@@ -81,7 +88,9 @@ def _run_entity(control, entity: ArkEntity, args: argparse.Namespace) -> dict:
     with entity_session_factory(entity.database_name)() as ledger:
         evidence_rows = (
             control.query(ArkEvidence)
-            .filter(ArkEvidence.entity_id == entity.id, ArkEvidence.status == "verified")
+            .filter(
+                ArkEvidence.entity_id == entity.id, ArkEvidence.status == "verified"
+            )
             .order_by(ArkEvidence.id)
             .limit(args.max_candidates)
             .all()
@@ -148,7 +157,9 @@ def run_cycle(args: argparse.Namespace) -> dict:
         if args.entity and not entities:
             raise ValueError("Requested Ark CPA entity was not found")
         if not args.apply:
-            report["entities"] = [_entity_preview(control, entity) for entity in entities]
+            report["entities"] = [
+                _entity_preview(control, entity) for entity in entities
+            ]
             return report
         for entity in entities:
             try:
@@ -169,7 +180,10 @@ def main() -> int:
         print("controller refused: --allow-posting requires --apply", file=sys.stderr)
         return 2
     if args.interval < 60:
-        print("controller refused: --interval must be at least 60 seconds", file=sys.stderr)
+        print(
+            "controller refused: --interval must be at least 60 seconds",
+            file=sys.stderr,
+        )
         return 2
     while True:
         try:

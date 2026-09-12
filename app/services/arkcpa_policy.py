@@ -164,7 +164,9 @@ def evaluate_candidate(
     }
 
 
-def _candidate_signature(candidate: ArkPostingCandidate) -> tuple[str, tuple[int, ...], str]:
+def _candidate_signature(
+    candidate: ArkPostingCandidate,
+) -> tuple[str, tuple[int, ...], str]:
     description = re.sub(r"[^a-z0-9]+", " ", candidate.description.lower()).strip()
     accounts = tuple(
         sorted(
@@ -179,7 +181,11 @@ def _candidate_signature(candidate: ArkPostingCandidate) -> tuple[str, tuple[int
 
 def _candidate_debits(candidate: ArkPostingCandidate) -> Decimal:
     return sum(
-        (_amount(line.get("debit")) for line in (candidate.lines or []) if isinstance(line, dict)),
+        (
+            _amount(line.get("debit"))
+            for line in (candidate.lines or [])
+            if isinstance(line, dict)
+        ),
         Decimal("0"),
     )
 

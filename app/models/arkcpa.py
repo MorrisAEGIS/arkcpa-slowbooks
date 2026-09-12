@@ -307,7 +307,10 @@ class ArkEntityRelationship(Base):
 
     id = Column(Integer, primary_key=True)
     entity_id = Column(
-        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     related_entity_id = Column(
         Integer, ForeignKey("ark_entities.id", ondelete="SET NULL"), nullable=True
@@ -338,7 +341,10 @@ class ArkImportRun(Base):
 
     id = Column(Integer, primary_key=True)
     entity_id = Column(
-        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     kind = Column(String(20), nullable=False, index=True)
     status = Column(String(20), nullable=False, default="running", index=True)
@@ -353,7 +359,9 @@ class ArkImportRun(Base):
 class ArkEvidenceFact(Base):
     __tablename__ = "ark_evidence_facts"
     __table_args__ = (
-        UniqueConstraint("evidence_id", "fact_key", "locator", name="uq_ark_evidence_fact"),
+        UniqueConstraint(
+            "evidence_id", "fact_key", "locator", name="uq_ark_evidence_fact"
+        ),
         CheckConstraint(
             "status IN ('extracted', 'verified', 'rejected')",
             name="ck_ark_evidence_fact_status",
@@ -366,7 +374,10 @@ class ArkEvidenceFact(Base):
 
     id = Column(Integer, primary_key=True)
     evidence_id = Column(
-        Integer, ForeignKey("ark_evidence.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_evidence.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     fact_key = Column(String(100), nullable=False, index=True)
     value = Column(JSON, nullable=False)
@@ -406,7 +417,9 @@ class ArkAuthoritySource(Base):
 class ArkSourceSnapshot(Base):
     __tablename__ = "ark_source_snapshots"
     __table_args__ = (
-        UniqueConstraint("source_id", "content_hash", name="uq_ark_source_snapshot_hash"),
+        UniqueConstraint(
+            "source_id", "content_hash", name="uq_ark_source_snapshot_hash"
+        ),
         CheckConstraint(
             "status IN ('current', 'superseded', 'proposed', 'failed')",
             name="ck_ark_source_snapshot_status",
@@ -415,7 +428,10 @@ class ArkSourceSnapshot(Base):
 
     id = Column(Integer, primary_key=True)
     source_id = Column(
-        Integer, ForeignKey("ark_authority_sources.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_authority_sources.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     content_hash = Column(String(64), nullable=False, index=True)
     retrieved_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
@@ -437,7 +453,10 @@ class ArkRuleProposal(Base):
 
     id = Column(Integer, primary_key=True)
     source_snapshot_id = Column(
-        Integer, ForeignKey("ark_source_snapshots.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_source_snapshots.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     code = Column(String(120), nullable=False)
     title = Column(String(300), nullable=False)
@@ -465,7 +484,10 @@ class ArkControllerRun(Base):
 
     id = Column(Integer, primary_key=True)
     entity_id = Column(
-        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     run_type = Column(String(20), nullable=False, index=True)
     status = Column(String(20), nullable=False, default="queued", index=True)
@@ -491,10 +513,16 @@ class ArkControllerIssue(Base):
 
     id = Column(Integer, primary_key=True)
     run_id = Column(
-        Integer, ForeignKey("ark_controller_runs.id", ondelete="SET NULL"), nullable=True, index=True
+        Integer,
+        ForeignKey("ark_controller_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     entity_id = Column(
-        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     evidence_id = Column(
         Integer, ForeignKey("ark_evidence.id", ondelete="SET NULL"), nullable=True
@@ -530,10 +558,16 @@ class ArkAgentDecisionRun(Base):
 
     id = Column(Integer, primary_key=True)
     candidate_id = Column(
-        Integer, ForeignKey("ark_posting_candidates.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_posting_candidates.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     controller_run_id = Column(
-        Integer, ForeignKey("ark_controller_runs.id", ondelete="SET NULL"), nullable=True, index=True
+        Integer,
+        ForeignKey("ark_controller_runs.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
     agent_role = Column(String(20), nullable=False)
     model_id = Column(String(160), nullable=False)
@@ -546,7 +580,9 @@ class ArkAgentDecisionRun(Base):
     context_hash = Column(String(64), nullable=False)
     rationale_hash = Column(String(64), nullable=False)
     response_hash = Column(String(64), nullable=False)
-    created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False, index=True)
+    created_at = Column(
+        DateTime(timezone=True), default=_utcnow, nullable=False, index=True
+    )
 
 
 class ArkWorkpaperPackage(Base):
@@ -560,10 +596,15 @@ class ArkWorkpaperPackage(Base):
 
     id = Column(Integer, primary_key=True)
     entity_id = Column(
-        Integer, ForeignKey("ark_entities.id", ondelete="CASCADE"), nullable=False, index=True
+        Integer,
+        ForeignKey("ark_entities.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     obligation_id = Column(
-        Integer, ForeignKey("ark_compliance_obligations.id", ondelete="SET NULL"), nullable=True
+        Integer,
+        ForeignKey("ark_compliance_obligations.id", ondelete="SET NULL"),
+        nullable=True,
     )
     tax_year = Column(Integer, nullable=False, index=True)
     status = Column(String(30), nullable=False, default="draft", index=True)

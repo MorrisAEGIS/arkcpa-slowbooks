@@ -38,7 +38,9 @@ _PROMPT_INJECTION_PATTERNS = (
     re.compile(r"ignore\s+(all\s+)?(previous|prior|system)\s+instructions", re.I),
     re.compile(r"(?:system|developer)\s+prompt", re.I),
     re.compile(r"you\s+are\s+(?:now|an?)\b", re.I),
-    re.compile(r"(?:reveal|print|exfiltrate).{0,40}(?:secret|password|token|key)", re.I),
+    re.compile(
+        r"(?:reveal|print|exfiltrate).{0,40}(?:secret|password|token|key)", re.I
+    ),
     re.compile(r"(?:call|use|invoke)\s+(?:the\s+)?(?:tool|api|shell)", re.I),
 )
 
@@ -119,9 +121,17 @@ def _structured_facts(
     ]
     merchant = parsed["merchant"]
     candidates = (
-        ("receipt.merchant", merchant.get("value"), _confidence(merchant.get("confidence"))),
+        (
+            "receipt.merchant",
+            merchant.get("value"),
+            _confidence(merchant.get("confidence")),
+        ),
         ("receipt.date", parsed.get("date"), 0.9),
-        ("receipt.total", parsed.get("total"), _confidence(parsed.get("total_confidence"))),
+        (
+            "receipt.total",
+            parsed.get("total"),
+            _confidence(parsed.get("total_confidence")),
+        ),
         ("receipt.subtotal", parsed.get("subtotal"), 0.85),
         ("receipt.tax", parsed.get("tax"), 0.85),
         ("receipt.reference", parsed.get("reference"), 0.8),
@@ -180,7 +190,10 @@ def extract_evidence(db: Session, entity: ArkEntity, evidence: ArkEvidence) -> d
     if evidence.entity_id != entity.id:
         raise ValueError("Evidence does not belong to the selected entity")
     if evidence.status not in {"indexed", "extracted", "verified"}:
-        return {"status": "skipped", "reason": evidence.quarantine_reason or evidence.status}
+        return {
+            "status": "skipped",
+            "reason": evidence.quarantine_reason or evidence.status,
+        }
     path = resolve_evidence_path(entity, evidence.source_path)
     data = path.read_bytes()
     if sha256(data).hexdigest() != evidence.content_hash:
@@ -247,7 +260,11 @@ def scan_and_extract_entity(db: Session, entity: ArkEntity) -> dict:
         encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
         run.manifest_hash = sha256(encoded).hexdigest()
         run.counts = {**scan, **results}
-        run.status = "partial" if results["unsupported"] or results["quarantined"] else "completed"
+        run.status = (
+            "partial"
+            if results["unsupported"] or results["quarantined"]
+            else "completed"
+        )
         run.completed_at = _now()
         db.commit()
     except Exception as exc:

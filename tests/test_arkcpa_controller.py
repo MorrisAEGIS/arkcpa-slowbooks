@@ -52,7 +52,10 @@ def _seed_entity(db, accounts, *, posting_mode="assisted"):
         payroll_enabled=False,
         posting_mode=posting_mode,
         facts_status="verified",
-        profile={"business_activity": "energy services", "revenue_status": "pre-revenue"},
+        profile={
+            "business_activity": "energy services",
+            "revenue_status": "pre-revenue",
+        },
     )
     db.add(entity)
     db.flush()
@@ -233,7 +236,11 @@ def test_agent_call_requires_gateway_model_family_attestation():
 
     def handler(_request):
         return httpx.Response(
-            200, json={"model": "resolved", "choices": [{"message": {"content": json.dumps(response)}}]}
+            200,
+            json={
+                "model": "resolved",
+                "choices": [{"message": {"content": json.dumps(response)}}],
+            },
         )
 
     context = {"contract": {"raw_documents_allowed": False}}
@@ -374,7 +381,10 @@ def test_autonomous_posting_requires_learned_routine_pattern(
     db_session.add(candidate)
     db_session.flush()
     db_session.add_all(
-        [_approval(candidate, "bookkeeper", "family-a"), _approval(candidate, "controller", "family-b")]
+        [
+            _approval(candidate, "bookkeeper", "family-a"),
+            _approval(candidate, "controller", "family-b"),
+        ]
     )
     db_session.commit()
 

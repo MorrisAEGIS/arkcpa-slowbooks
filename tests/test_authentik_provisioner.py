@@ -58,12 +58,17 @@ def test_new_workspace_env_has_independent_secrets_and_private_permissions(tmp_p
     assert written["SESSION_SECRET_KEY"]
     assert written["PAYROLL_ENCRYPTION_SECRET"]
     assert written["SETTINGS_ENCRYPTION_KEY"]
-    assert len({
-        written["POSTGRES_PASSWORD"],
-        written["SESSION_SECRET_KEY"],
-        written["PAYROLL_ENCRYPTION_SECRET"],
-        written["SETTINGS_ENCRYPTION_KEY"],
-    }) == 4
+    assert (
+        len(
+            {
+                written["POSTGRES_PASSWORD"],
+                written["SESSION_SECRET_KEY"],
+                written["PAYROLL_ENCRYPTION_SECRET"],
+                written["SETTINGS_ENCRYPTION_KEY"],
+            }
+        )
+        == 4
+    )
     assert stat.S_IMODE(args.env_file.stat().st_mode) == 0o600
     assert stat.S_IMODE(args.env_file.parent.stat().st_mode) == 0o700
 
