@@ -328,11 +328,13 @@ def call_agent(
     }
     if role == "bookkeeper" and config.bookkeeper_family.strip().lower() == "gpt-oss":
         # llama.cpp's Harmony parser can reject otherwise valid GPT-OSS JSON
-        # after an unconstrained reasoning preamble. Disabling extraction and
-        # using a zero budget keep the visible response in the governed JSON
-        # channel without weakening the application's strict parser.
+        # after an unconstrained reasoning preamble. Disabling extraction,
+        # using a zero budget, and constraining the response to a JSON object
+        # keep the visible response in the governed channel without weakening
+        # the application's strict parser.
         payload["reasoning_format"] = "none"
         payload["thinking_budget_tokens"] = 0
+        payload["response_format"] = {"type": "json_object"}
     owns_client = client is None
     if client is None:
         client = httpx.Client(
@@ -387,6 +389,7 @@ def call_bookkeeper_proposal(
     if config.bookkeeper_family.strip().lower() == "gpt-oss":
         payload["reasoning_format"] = "none"
         payload["thinking_budget_tokens"] = 0
+        payload["response_format"] = {"type": "json_object"}
     owns_client = client is None
     if client is None:
         client = httpx.Client(
