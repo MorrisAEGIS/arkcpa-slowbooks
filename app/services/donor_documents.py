@@ -244,6 +244,8 @@ def render_acknowledgment(db, company: dict, customer, gift: dict) -> tuple[str,
     'donation_acknowledgment' (Settings -> Email Templates), falling back
     to the built-in text when the row has not been seeded. Rendered in the
     sandboxed environment, autoescaped."""
+    from app.services.settings_service import redact_secrets
+
     from jinja2.sandbox import SandboxedEnvironment
 
     from app.services.email_service import render_template_from_db
@@ -253,7 +255,8 @@ def render_acknowledgment(db, company: dict, customer, gift: dict) -> tuple[str,
         "donor": customer,
         "donor_name": customer.name,
         "customer_name": customer.name,
-        "company": company,
+        # Editable templates must never receive decrypted service credentials.
+        "company": redact_secrets(company),
         "gift": gift,
         "irs": gift_irs(company, gift),
     }

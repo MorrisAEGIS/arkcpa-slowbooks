@@ -77,6 +77,23 @@ def test_accepts_valid_pdf(client, seed_accounts):
     assert body["file_path"].startswith("uploads/attachments/invoice/42/")
 
 
+def test_download_url_reaches_literal_route(client, seed_accounts):
+    content = b"%PDF-1.4\nroute-order-proof\n"
+    uploaded = _upload(
+        client,
+        "invoice",
+        43,
+        "route-proof.pdf",
+        content=content,
+        content_type="application/pdf",
+    )
+    assert uploaded.status_code == 201, uploaded.text
+
+    response = client.get(f"/api/attachments/download/{uploaded.json()['id']}")
+    assert response.status_code == 200, response.text
+    assert response.content == content
+
+
 def test_filename_special_chars_sanitized(client, seed_accounts):
     # Characters outside the safe set get replaced with _
     r = _upload(client, "invoice", 1, "weird;|$name.pdf")

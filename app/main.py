@@ -11,6 +11,7 @@
 
 import logging
 import os
+import posixpath as _posixpath
 import re as _re
 import time as _time
 from contextlib import asynccontextmanager
@@ -558,6 +559,35 @@ _AUTH_EXEMPT_RE = _re.compile(
     r"^/api/payments/[a-z0-9_]+/(webhook|create-checkout-session)$"
 )
 
+# Static CSS, JavaScript, fonts, and ARK brand assets must remain public so the
+# login shell can render. Uploaded business documents are different: OCR
+# intake, receipt images, and attachments can contain financial and identity
+# data. Only the fixed, non-executable company-logo filenames are public.
+_PUBLIC_UPLOAD_RE = _re.compile(
+    r"^/static/uploads/company_logo\.(?:png|jpg|jpeg|gif|webp)$"
+)
+
+
+def _is_auth_exempt_path(path: str) -> bool:
+    """Return whether *path* may bypass the authenticated-session gate."""
+    # StaticFiles normalizes dot segments before resolving a file. Apply the
+    # same normalization at the auth boundary so
+    # ``/static/css/../uploads/intake/x`` cannot inherit the public CSS rule
+    # and then resolve into private upload storage.
+    normalized = _posixpath.normpath(path)
+    if path.endswith("/") and normalized != "/":
+        # Route prefixes include their trailing slash (for example
+        # ``/portal/``); normpath removes it even though Starlette's routing
+        # semantics do not. Restore it after collapsing dot segments.
+        normalized += "/"
+    if normalized == "/static/uploads" or normalized.startswith("/static/uploads/"):
+        return bool(_PUBLIC_UPLOAD_RE.fullmatch(normalized))
+    return (
+        normalized in _AUTH_EXEMPT_EXACT
+        or normalized.startswith(_AUTH_EXEMPT_PREFIXES)
+        or bool(_AUTH_EXEMPT_RE.match(normalized))
+    )
+
 
 # ---------------------------------------------------------------------------
 # Server Edition RBAC — coarse route-group policy, enforced centrally.
@@ -630,11 +660,7 @@ def _role_allows(role: str, method: str, path: str) -> bool:
 @app.middleware("http")
 async def require_session(request: Request, call_next):
     path = request.url.path
-    if (
-        path in _AUTH_EXEMPT_EXACT
-        or path.startswith(_AUTH_EXEMPT_PREFIXES)
-        or _AUTH_EXEMPT_RE.match(path)
-    ):
+    if _is_auth_exempt_path(path):
         return await call_next(request)
     token_principal = None
     if request.session.get("authenticated") is True:

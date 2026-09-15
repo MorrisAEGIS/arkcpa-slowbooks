@@ -1,9 +1,8 @@
 """Regression tests for /api/uploads/logo.
 
-Covers the bug from issue #10: the UI promised SVG support but the server
-rejected it. After the fix the server accepts the same five formats the UI
-advertises (PNG, JPEG, GIF, WebP, SVG) and rejects everything else with a
-clear, JSON-shaped error.
+Covers the logo format and size contract. Raster images are accepted; SVG is
+rejected because the fixed logo path is intentionally public and SVG can carry
+active content.
 """
 
 import io
@@ -44,16 +43,15 @@ def test_png_upload_accepted(client, seed_accounts, tmp_path, monkeypatch):
     assert body["path"].endswith("/company_logo.png")
 
 
-def test_svg_upload_now_accepted(client, seed_accounts, tmp_path, monkeypatch):
-    # Issue #10: SVG was promised but rejected. After the fix it's accepted.
+def test_svg_upload_rejected(client, seed_accounts, tmp_path, monkeypatch):
     from app.routes import uploads as uploads_route
 
     monkeypatch.setattr(uploads_route, "UPLOAD_DIR", tmp_path)
 
     svg = b"<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1 1'/>"
     r = _post(client, svg, "image/svg+xml", "logo.svg")
-    assert r.status_code == 200, r.text
-    assert r.json()["path"].endswith("/company_logo.svg")
+    assert r.status_code == 400, r.text
+    assert "SVG" not in r.json()["detail"]
 
 
 def test_webp_upload_accepted(client, seed_accounts, tmp_path, monkeypatch):
@@ -100,7 +98,8 @@ def test_disallowed_mime_rejected_with_clear_message(
     r = _post(client, b"<html></html>", "text/html", "evil.html")
     assert r.status_code == 400
     detail = r.json()["detail"]
-    assert "PNG" in detail and "SVG" in detail and "WebP" in detail
+    assert "PNG" in detail and "WebP" in detail
+    assert "SVG" not in detail
 
 
 def test_oversize_rejected(client, seed_accounts, tmp_path, monkeypatch):

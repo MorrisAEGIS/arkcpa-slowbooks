@@ -39,6 +39,24 @@ ENCRYPTED_SETTINGS_KEYS = frozenset(
 )
 
 
+SECRET_PLACEHOLDER = "********"
+
+
+def redact_secrets(settings: dict) -> dict:
+    """Return a copy with every configured credential replaced.
+
+    Editable Jinja email templates receive company settings as a plain dict.
+    Sandboxing does not prevent ordinary dict-key reads, so passing the raw
+    result of ``get_all_settings`` would let a template render decrypted SMTP,
+    payment-provider, banking, or closing-period credentials. Keeping this
+    list beside the at-rest encryption list prevents the two controls drifting.
+    """
+    return {
+        key: (SECRET_PLACEHOLDER if key in ENCRYPTED_SETTINGS_KEYS and value else value)
+        for key, value in settings.items()
+    }
+
+
 def _maybe_decrypt(key: str, value):
     if key in ENCRYPTED_SETTINGS_KEYS and value:
         return decrypt_value(value)

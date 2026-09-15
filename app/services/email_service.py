@@ -134,10 +134,18 @@ def send_email(
 def render_template_from_db(db: Session, template_name: str, context: dict) -> tuple:
     """Load template from DB, render with Jinja2 SandboxedEnvironment, fall back to file."""
     from app.models.email_templates import EmailTemplate
+    from app.services.settings_service import redact_secrets
     from jinja2.sandbox import SandboxedEnvironment
 
     tpl = db.query(EmailTemplate).filter(EmailTemplate.name == template_name).first()
     if tpl:
+        # Enforce the credential boundary at the editable-template sink as
+        # defense in depth. Callers should pass a redacted company context,
+        # but a future template renderer cannot expose secrets by forgetting.
+        safe_context = dict(context)
+        company = safe_context.get("company")
+        if isinstance(company, dict):
+            safe_context["company"] = redact_secrets(company)
         # autoescape=True so customer-supplied names / addresses / memo
         # text injected via {{ }} can't break out of HTML context. Same
         # rule WC3D applied to the file-loader Environment in commit
@@ -147,8 +155,8 @@ def render_template_from_db(db: Session, template_name: str, context: dict) -> t
 
         env.filters["currency"] = _format_currency
         env.filters["fdate"] = _format_date
-        subject = env.from_string(tpl.subject_template).render(**context)
-        body = env.from_string(tpl.body_template).render(**context)
+        subject = env.from_string(tpl.subject_template).render(**safe_context)
+        body = env.from_string(tpl.body_template).render(**safe_context)
         return subject, body
     return None, None
 

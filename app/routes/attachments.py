@@ -159,18 +159,9 @@ async def upload_attachment(
     return attachment
 
 
-@router.get("/{entity_type}/{entity_id}", response_model=list[AttachmentResponse])
-def list_attachments(entity_type: str, entity_id: int, db: Session = Depends(get_db)):
-    return (
-        db.query(Attachment)
-        .filter(
-            Attachment.entity_type == entity_type, Attachment.entity_id == entity_id
-        )
-        .order_by(Attachment.uploaded_at.desc())
-        .all()
-    )
-
-
+# Keep this literal route above the catch-all ``/{entity_type}/{entity_id}``.
+# FastAPI matches in declaration order; below it, ``/download/2`` is treated as
+# entity_type="download" and entity_id=2 and returns an empty list.
 @router.get("/download/{attachment_id}")
 def download_attachment(attachment_id: int, db: Session = Depends(get_db)):
     attachment = db.query(Attachment).filter(Attachment.id == attachment_id).first()
@@ -185,6 +176,18 @@ def download_attachment(attachment_id: int, db: Session = Depends(get_db)):
         str(file_path),
         filename=attachment.filename,
         media_type=attachment.mime_type or "application/octet-stream",
+    )
+
+
+@router.get("/{entity_type}/{entity_id}", response_model=list[AttachmentResponse])
+def list_attachments(entity_type: str, entity_id: int, db: Session = Depends(get_db)):
+    return (
+        db.query(Attachment)
+        .filter(
+            Attachment.entity_type == entity_type, Attachment.entity_id == entity_id
+        )
+        .order_by(Attachment.uploaded_at.desc())
+        .all()
     )
 
 

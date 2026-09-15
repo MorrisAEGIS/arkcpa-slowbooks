@@ -19,16 +19,13 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # from the verified content-type instead of from the user-supplied filename
 # prevents a renamed-file from landing on disk with a misleading suffix.
 #
-# SVG note: SVG can contain inline <script> tags. Since the company logo is
-# uploaded by the admin and served back from /static/, in a multi-tenant or
-# externally-exposed deployment this is an XSS vector. Followups: sanitize
-# uploaded SVGs (bleach / svg-hush) or serve /static/ with a strict CSP.
+# SVG is intentionally excluded: it is an executable XML document and this
+# fixed logo URL is one of the only uploaded assets served without a session.
 _LOGO_EXT_BY_TYPE = {
     "image/png": "png",
     "image/jpeg": "jpg",
     "image/gif": "gif",
     "image/webp": "webp",
-    "image/svg+xml": "svg",
 }
 
 _LOGO_MAX_BYTES = 5 * 1024 * 1024  # 5 MB — generous for a logo, blocks abuse
@@ -40,7 +37,7 @@ async def upload_logo(file: UploadFile = File(...), db: Session = Depends(get_db
     if ext is None:
         raise HTTPException(
             status_code=400,
-            detail="Logo must be a PNG, JPEG, GIF, WebP, or SVG image "
+            detail="Logo must be a PNG, JPEG, GIF, or WebP image "
             f"(got '{file.content_type or 'unknown'}').",
         )
 
