@@ -233,7 +233,6 @@ def scan_and_extract_entity(db: Session, entity: ArkEntity) -> dict:
     run = ArkImportRun(entity_id=entity.id, kind="ark_files", status="running")
     db.add(run)
     db.commit()
-    scan = scan_entity_files(db, entity)
     results = {
         "extracted": 0,
         "verified": 0,
@@ -242,6 +241,7 @@ def scan_and_extract_entity(db: Session, entity: ArkEntity) -> dict:
         "unsupported": 0,
     }
     try:
+        scan = scan_entity_files(db, entity)
         rows = (
             db.query(ArkEvidence)
             .filter(
@@ -273,10 +273,18 @@ def scan_and_extract_entity(db: Session, entity: ArkEntity) -> dict:
             )
         encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
         run.manifest_hash = sha256(encoded).hexdigest()
-        run.counts = {**scan, **results}
+        scan_quarantined = int(scan.get("quarantined", 0))
+        extraction_quarantined = results["quarantined"]
+        run.counts = {
+            **scan,
+            **results,
+            "scan_quarantined": scan_quarantined,
+            "extraction_quarantined": extraction_quarantined,
+            "quarantined": scan_quarantined + extraction_quarantined,
+        }
         run.status = (
             "partial"
-            if results["unsupported"] or results["quarantined"]
+            if results["unsupported"] or run.counts["quarantined"]
             else "completed"
         )
         run.completed_at = _now()
