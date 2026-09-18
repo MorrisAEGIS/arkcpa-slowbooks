@@ -170,9 +170,9 @@ def scan_entity_files(db: Session, entity: ArkEntity) -> dict:
                     mimetypes.guess_type(path.name)[0] or "application/octet-stream"
                 )
                 record.status = (
-                    "verified"
+                    prior_status
                     if status == "indexed"
-                    and prior_status == "verified"
+                    and prior_status in {"extracted", "verified"}
                     and prior_hash == content_hash
                     else status
                 )

@@ -1,7 +1,7 @@
 """Read-only Ark Files extraction and prompt-injection isolation."""
 
 from app.models.arkcpa import ArkEntity, ArkEvidence, ArkEvidenceFact, ArkImportRun
-from app.services import ark_files
+from app.services import ark_files, arkcpa_ingestion
 from app.services.ark_files import resolve_evidence_path
 from app.services.arkcpa_ingestion import scan_and_extract_entity
 
@@ -54,6 +54,29 @@ def test_ingestion_keeps_raw_text_transient_and_stores_cited_facts(
     assert db_session.query(ArkImportRun).filter_by(status="completed").count() == 1
     persisted = " ".join(str(row.value) for row in facts)
     assert raw not in persisted
+
+
+def test_ingestion_skips_unchanged_evidence_after_current_extraction(
+    db_session, tmp_path, monkeypatch
+):
+    entity = _entity(db_session)
+    receipt = tmp_path / "_shared" / "Ark CPA" / entity.slug / "Receipts" / "r-1.txt"
+    receipt.parent.mkdir(parents=True)
+    receipt.write_text("ACME\n2026-09-01\nTOTAL 105.00\n", encoding="utf-8")
+    monkeypatch.setattr(ark_files, "ARK_FILES_ROOT", tmp_path.resolve())
+
+    first = scan_and_extract_entity(db_session, entity)
+    assert first["counts"]["extracted"] == 1
+
+    def fail_if_reextracted(*_args, **_kwargs):
+        raise AssertionError("unchanged evidence was extracted again")
+
+    monkeypatch.setattr(arkcpa_ingestion, "extract_evidence", fail_if_reextracted)
+    second = scan_and_extract_entity(db_session, entity)
+
+    assert second["status"] == "completed"
+    assert second["counts"]["unchanged"] == 1
+    assert second["counts"]["extracted"] == 0
 
 
 def test_embedded_agent_instructions_are_quarantined_before_model_use(
