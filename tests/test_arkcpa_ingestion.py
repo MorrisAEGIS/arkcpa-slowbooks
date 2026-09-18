@@ -2,7 +2,7 @@
 
 from app.models.arkcpa import ArkEntity, ArkEvidence, ArkEvidenceFact, ArkImportRun
 from app.services import ark_files, arkcpa_ingestion
-from app.services.ark_files import resolve_evidence_path
+from app.services.ark_files import resolve_evidence_path, scan_entity_files
 from app.services.arkcpa_ingestion import scan_and_extract_entity
 
 
@@ -117,3 +117,23 @@ def test_evidence_resolver_refuses_symlink_swap(db_session, tmp_path, monkeypatc
         assert "symlink" in str(exc)
     else:
         raise AssertionError("symlink evidence path was accepted")
+
+
+def test_scan_records_oversized_file_metadata_without_integer_overflow(
+    db_session, tmp_path, monkeypatch
+):
+    entity = _entity(db_session)
+    document = tmp_path / "_shared" / "Ark CPA" / entity.slug / "Inbox" / "large.txt"
+    document.parent.mkdir(parents=True)
+    with document.open("wb") as handle:
+        handle.seek(2**31)
+        handle.write(b"\0")
+    monkeypatch.setattr(ark_files, "ARK_FILES_ROOT", tmp_path.resolve())
+
+    result = scan_entity_files(db_session, entity)
+
+    assert result["quarantined"] == 1
+    evidence = db_session.query(ArkEvidence).one()
+    assert evidence.size_bytes == 2**31 + 1
+    assert evidence.status == "quarantined"
+    assert evidence.quarantine_reason == "file exceeds evidence size limit"

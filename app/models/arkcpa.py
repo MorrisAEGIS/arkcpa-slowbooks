@@ -9,6 +9,7 @@ tables or an agent prompt by default.
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Column,
@@ -141,7 +142,7 @@ class ArkEvidence(Base):
     source_path = Column(String(1000), nullable=False)
     category = Column(String(30), nullable=False, default="Inbox", index=True)
     content_hash = Column(String(64), nullable=True, index=True)
-    size_bytes = Column(Integer, nullable=False, default=0)
+    size_bytes = Column(BigInteger, nullable=False, default=0)
     mime_type = Column(String(120), nullable=False, default="application/octet-stream")
     status = Column(String(20), nullable=False, default="indexed", index=True)
     quarantine_reason = Column(String(240), nullable=True)
