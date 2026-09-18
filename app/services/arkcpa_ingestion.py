@@ -234,7 +234,13 @@ def scan_and_extract_entity(db: Session, entity: ArkEntity) -> dict:
     db.add(run)
     db.commit()
     scan = scan_entity_files(db, entity)
-    results = {"extracted": 0, "verified": 0, "quarantined": 0, "unsupported": 0}
+    results = {
+        "extracted": 0,
+        "verified": 0,
+        "unchanged": 0,
+        "quarantined": 0,
+        "unsupported": 0,
+    }
     try:
         rows = (
             db.query(ArkEvidence)
@@ -247,9 +253,17 @@ def scan_and_extract_entity(db: Session, entity: ArkEntity) -> dict:
         )
         manifest = []
         for evidence in rows:
-            outcome = extract_evidence(db, entity, evidence)
-            status = outcome["status"]
-            results[status if status in results else "unsupported"] += 1
+            extraction_is_current = (
+                evidence.status in {"extracted", "verified"}
+                and bool(evidence.extracted_text_hash)
+                and evidence.extractor_version == EXTRACTOR_VERSION
+            )
+            if extraction_is_current:
+                results["unchanged"] += 1
+            else:
+                outcome = extract_evidence(db, entity, evidence)
+                status = outcome["status"]
+                results[status if status in results else "unsupported"] += 1
             manifest.append(
                 {
                     "path": evidence.source_path,
