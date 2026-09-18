@@ -1,5 +1,7 @@
 """Read-only Ark Files extraction and prompt-injection isolation."""
 
+import pytest
+
 from app.models.arkcpa import ArkEntity, ArkEvidence, ArkEvidenceFact, ArkImportRun
 from app.services import ark_files, arkcpa_ingestion
 from app.services.ark_files import resolve_evidence_path, scan_entity_files
@@ -98,6 +100,26 @@ def test_embedded_agent_instructions_are_quarantined_before_model_use(
     assert evidence.status == "quarantined"
     assert evidence.quarantine_reason == "possible embedded model instructions"
     assert db_session.query(ArkEvidenceFact).count() == 0
+    assert result["counts"]["scan_quarantined"] == 0
+    assert result["counts"]["extraction_quarantined"] == 1
+    assert result["counts"]["quarantined"] == 1
+
+
+def test_scan_failure_marks_import_run_failed(db_session, monkeypatch):
+    entity = _entity(db_session)
+
+    def fail_scan(*_args, **_kwargs):
+        raise ValueError("bounded scan failure")
+
+    monkeypatch.setattr(arkcpa_ingestion, "scan_entity_files", fail_scan)
+
+    with pytest.raises(ValueError, match="bounded scan failure"):
+        scan_and_extract_entity(db_session, entity)
+
+    run = db_session.query(ArkImportRun).one()
+    assert run.status == "failed"
+    assert run.error_code == "extraction_failed"
+    assert run.error_message == "bounded scan failure"
 
 
 def test_evidence_resolver_refuses_symlink_swap(db_session, tmp_path, monkeypatch):
