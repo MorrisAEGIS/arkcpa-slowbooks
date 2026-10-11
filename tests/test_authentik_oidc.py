@@ -185,19 +185,18 @@ def test_valid_callback_issues_normal_slowbooks_admin_session(
     monkeypatch.setattr("app.routes.auth.verify_id_token", fake_verify)
 
     started = unauthed_client.get(
-        "/api/auth/authentik", headers={"host": "testserver"}, follow_redirects=False
+        "https://books.example/api/auth/authentik", follow_redirects=False
     )
     assert started.status_code == 302
-    state = unauthed_client.cookies.get("arkcpa-oidc-state")
+    state = unauthed_client.cookies.get("__Host-arkcpa-oidc-state")
     callback = unauthed_client.get(
-        f"/api/auth/authentik/callback?code=one-time-code&state={state}",
-        headers={"host": "testserver"},
+        f"https://books.example/api/auth/authentik/callback?code=one-time-code&state={state}",
         follow_redirects=False,
     )
     assert callback.status_code == 302
     assert callback.headers["location"] == "https://books.example/"
     status_response = unauthed_client.get(
-        "/api/auth/status", headers={"host": "testserver"}
+        "https://books.example/api/auth/status"
     ).json()
     assert status_response["authenticated"] is True
     assert status_response["user"]["username"] == "jay"

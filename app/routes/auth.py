@@ -15,7 +15,7 @@ import os
 import secrets
 from datetime import datetime, timezone
 from typing import Optional
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import RedirectResponse
@@ -242,6 +242,37 @@ async def authentik_login(request: Request):
         return _oidc_error(secure, "unavailable")
     try:
         config = get_oidc_config()
+        canonical = urlsplit(config.redirect_uri)
+        request_scheme = "https" if secure else request.url.scheme
+        request_origin = (
+            request_scheme,
+            request.url.hostname,
+            request.url.port or (443 if request_scheme == "https" else 80),
+        )
+        canonical_origin = (
+            canonical.scheme,
+            canonical.hostname,
+            canonical.port or (443 if canonical.scheme == "https" else 80),
+        )
+        if request_origin != canonical_origin:
+            # Attempt cookies are host-only: start and callback must share an
+            # origin. Only trusted configuration determines the destination.
+            response = RedirectResponse(
+                urlunsplit(
+                    (
+                        canonical.scheme,
+                        canonical.netloc,
+                        "/api/auth/authentik",
+                        urlencode(
+                            {"next": _safe_next(request.query_params.get("next"))}
+                        ),
+                        "",
+                    )
+                ),
+                status_code=302,
+            )
+            response.headers["Cache-Control"] = "no-store"
+            return response
         discovery = await discover_oidc(config)
         attempt = create_oidc_attempt()
         response = RedirectResponse(
