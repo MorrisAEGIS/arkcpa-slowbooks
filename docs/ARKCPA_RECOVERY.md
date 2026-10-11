@@ -72,6 +72,11 @@ It checks inventory and pinned running containers again before sealing. It saves
 
 - Custom-format DB dumps and role definitions without password hashes.
 - Actual `.env`, Compose and the dedicated allowlist of configuration/manifests.
+- Complete Docker inspect descriptors of the three pinned containers inside the
+  encrypted payload only, including actual environment, mounts, network and
+  restart configuration. The plaintext receipt contains only their SHA-256.
+  These preserve runtime overrides that may differ from on-disk Compose; they
+  are recovery inputs, not an automatic container recreation procedure.
 - Complete evidence files and app uploads, with byte-level SHA-256 manifests.
 - A self-contained Git bundle of the selected clean source revision.
 - The exact web, controller and PostgreSQL images, saved by ID without tags.
@@ -86,6 +91,9 @@ container and plaintext staging are removed on completion/failure. No production
 database is a restore target.
 
 The evidence, upload and configuration checks reject detected concurrent edits.
+The key's resolved path must lie outside the actual copied files, evidence and
+import-manifest trees and source repository. The normal `config_root/recovery`
+key location remains allowed because that directory is not captured.
 Each pg_dump has its own transaction snapshot. This does **not** create an atomic
 snapshot across independent databases and files. Releases require an owner/session
 and write-idle gate; sustained writes require a separately designed quiescence or
@@ -123,13 +131,19 @@ fresh receipt. Until then the October 7 offsite receipt is the last verified one
 
 ## Working-login rollback
 
-Do not restore the old `arkcpa.magaenergy.ai` callback. The last healthy canonical
-web image before this repair is
-`sha256:c5638352ebb8a782400059d7e86687636fa3aa69057d956f648b7dffdc9944f0`.
-Retain the current Enerteq hostname, callback, Authentik allowlist and tunnel/DNS.
+Do not restore the old `arkcpa.magaenergy.ai` callback. Retain the current Enerteq
+hostname, callback, Authentik allowlist and tunnel/DNS. Use an exact independently
+tested forward-compatible rollback image. The pre-repair canonical image
+`sha256:c5638352ebb8a782400059d7e86687636fa3aa69057d956f648b7dffdc9944f0`
+is a possible dependency baseline, **not a ready rollback target** after the new
+session migration: its entrypoint runs Alembic and cannot recognize that newer
+revision. A rollback derivative must retain the reviewed security fixes and new
+additive migration while preserving the incumbent dependencies. Rehearse actual
+PostgreSQL startup, migration and authenticated behavior; do not downgrade the
+database or reopen the repaired authorization paths.
 
 Prepare `scripts/arkcpa_rollback.py prepare` with `--compose`, `--environment`,
-`--output`, that `--rollback-image`, the full `--expected-web-image` candidate ID
+`--output`, the tested `--rollback-image`, the full `--expected-web-image` candidate ID
 and the three `--app-container`, `--postgres-container`, `--controller-container`
 names. This creates a secret-free web-image-only Compose override and a plan
 pinning unchanged deployment files and the database/controller identities.

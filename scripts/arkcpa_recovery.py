@@ -136,6 +136,31 @@ def validate_config(config):
         raise RecoveryError("key must be a regular file")
     if stat.S_IMODE(key.stat().st_mode) != 0o600:
         raise RecoveryError("key permissions must be 0600")
+    key_path = key.resolve()
+    project = Path(config["project_dir"])
+    config_root = Path(config["config_root"])
+    captured_trees = [
+        Path(config["ark_files_root"]).resolve(),
+        Path(config["source_dir"]).resolve(),
+        (config_root / "import-manifests").resolve(),
+    ]
+    captured_files = [
+        project / ".env",
+        project / "docker-compose.ark.yml",
+        *[
+            config_root / name
+            for name in (
+                "arkcpa-entities-jay-only.json",
+                "entity-discovery.json",
+                "onedrive-manifest.json",
+                "import_arkcpa_from_manifest.py",
+            )
+        ],
+    ]
+    if any(
+        key_path == root or root in key_path.parents for root in captured_trees
+    ) or any(key_path == path.resolve() for path in captured_files):
+        raise RecoveryError("encryption passphrase must be outside captured sources")
     prefix = config.get("database_prefix", "arkcpa")
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,31}", prefix):
         raise RecoveryError("invalid governed database prefix")
@@ -171,6 +196,27 @@ def inspect_pins(config):
             raise RecoveryError("container identity/state changed")
         result[kind] = {"id": info["Id"], "image": info["Image"]}
     return result
+
+
+def private_runtime_descriptors(config):
+    """Full runtime configuration; only write this inside the encrypted payload."""
+    result = {}
+    for kind, pin in config["containers"].items():
+        info = json.loads(command(["docker", "inspect", pin["name"]]))[0]
+        if info["Id"] != pin["id"] or info["State"]["Status"] != "running":
+            raise RecoveryError("container identity/state changed")
+        result[kind] = info
+    return result
+
+
+def runtime_contract(descriptors):
+    # State/health counters can change without a configuration change.
+    return {
+        kind: {
+            key: item[key] for key in ("Id", "Image", "Config", "HostConfig", "Mounts")
+        }
+        for kind, item in descriptors.items()
+    }
 
 
 def sql(container, database, query):
@@ -379,6 +425,10 @@ def capture(config):
         payload = work / "recovery"
         for subdir in ("databases", "config", "uploads"):
             (payload / subdir).mkdir(parents=True, mode=0o700)
+        private_runtime = private_runtime_descriptors(config)
+        runtime_file = payload / "config" / "container-runtime.private.json"
+        write_json(runtime_file, private_runtime)
+        runtime_sha = sha(runtime_file)
         counts = {}
         for database in databases:
             counts[database] = int(
@@ -475,6 +525,10 @@ def capture(config):
             raise RecoveryError(
                 "database inventory or service identity changed during capture"
             )
+        if runtime_contract(private_runtime_descriptors(config)) != runtime_contract(
+            private_runtime
+        ):
+            raise RecoveryError("runtime configuration changed during capture")
         if (
             command(["git", "rev-parse", "HEAD"], cwd=source_repo).strip() != head
             or command(
@@ -511,6 +565,7 @@ def capture(config):
             "schema": "arkcpa-recovery/v2",
             "run_id": run_id,
             "source_head": head,
+            "runtime_descriptor_sha256": runtime_sha,
             "source_role": config.get(
                 "source_role",
                 "operator-selected source; runtime image IDs captured independently",
@@ -553,6 +608,7 @@ def capture(config):
         "database_count": len(databases),
         "ark_files": manifest["ark_files"],
         "source_head": head,
+        "runtime_descriptor_sha256": runtime_sha,
         "image_ids": images,
         "verification": proof,
         "completed_at": datetime.now(timezone.utc).isoformat(),

@@ -152,3 +152,91 @@ def test_config_requires_private_key_and_disjoint_staging(tmp_path):
     config["work_root"] = config["ark_files_root"] + "/work"
     with pytest.raises(recovery.RecoveryError, match="disjoint"):
         recovery.validate_config(config)
+
+
+@pytest.mark.parametrize(
+    "key_location",
+    [
+        ("ark_files_root", "nested/key"),
+        ("source_dir", "key"),
+        ("project_dir", ".env"),
+        ("project_dir", "docker-compose.ark.yml"),
+        ("config_root", "entity-discovery.json"),
+        ("config_root", "import-manifests/nested/key"),
+    ],
+)
+def test_recovery_passphrase_cannot_be_archived(tmp_path, key_location):
+    config = {
+        k: str(tmp_path / k)
+        for k in (
+            "project_dir",
+            "source_dir",
+            "ark_files_root",
+            "config_root",
+            "gpg_home",
+            "output_root",
+            "work_root",
+        )
+    }
+    root, suffix = key_location
+    key = Path(config[root]) / suffix
+    key.parent.mkdir(parents=True)
+    key.write_text("synthetic-passphrase")
+    key.chmod(0o600)
+    config.update(
+        key_file=str(key),
+        containers={k: {"id": "a" * 64} for k in ("postgres", "app", "controller")},
+    )
+    with pytest.raises(recovery.RecoveryError, match="outside captured sources"):
+        recovery.validate_config(config)
+
+
+def test_documented_key_under_uncaptured_recovery_config_is_allowed(tmp_path):
+    config = {
+        k: str(tmp_path / k)
+        for k in (
+            "project_dir",
+            "source_dir",
+            "ark_files_root",
+            "config_root",
+            "gpg_home",
+            "output_root",
+            "work_root",
+        )
+    }
+    key = Path(config["config_root"]) / "recovery/backup-passphrase"
+    key.parent.mkdir(parents=True)
+    key.write_text("synthetic-passphrase")
+    key.chmod(0o600)
+    config.update(
+        key_file=str(key),
+        containers={k: {"id": "a" * 64} for k in ("postgres", "app", "controller")},
+    )
+    recovery.validate_config(config)
+
+
+def test_runtime_snapshot_preserves_private_overrides_without_printing(
+    monkeypatch, capsys, tmp_path
+):
+    item = {
+        "Id": "a" * 64,
+        "Image": "sha256:" + "b" * 64,
+        "State": {"Status": "running", "Health": {"Status": "healthy"}},
+        "Config": {"Env": ["SESSION_SECRET_KEY=synthetic-private"], "Cmd": ["worker"]},
+        "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}},
+        "Mounts": [{"Source": "/synthetic/source", "Destination": "/ark-files"}],
+        "NetworkSettings": {"Networks": {"private-network": {"Aliases": ["worker"]}}},
+    }
+    monkeypatch.setattr(recovery, "command", lambda args: json.dumps([item]))
+    config = {"containers": {"controller": {"name": "worker", "id": "a" * 64}}}
+    snapshot = recovery.private_runtime_descriptors(config)
+    private = tmp_path / "runtime.private.json"
+    recovery.write_json(private, snapshot)
+    assert json.loads(private.read_text()) == {"controller": item}
+    assert private.stat().st_mode & 0o777 == 0o600
+    assert capsys.readouterr().out == ""
+    contract = recovery.runtime_contract(snapshot)
+    snapshot["controller"]["State"]["Health"]["Status"] = "starting"
+    assert recovery.runtime_contract(snapshot) == contract
+    snapshot["controller"]["Config"] = {"Env": ["SESSION_SECRET_KEY=changed"]}
+    assert recovery.runtime_contract(snapshot) != contract
