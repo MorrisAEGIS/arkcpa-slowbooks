@@ -29,7 +29,7 @@ services:
       retries: 20
 
   slowbooks:
-    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.10.1-ark-controller}
+    image: ${ARKCPA_WEB_IMAGE:-${ARKCPA_IMAGE:-arkcpa-slowbooks:2.10.1-ark-controller}}
     build:
       context: .
     restart: unless-stopped
@@ -106,9 +106,9 @@ services:
 
   controller-worker:
     profiles: ["controller"]
-    image: ${ARKCPA_IMAGE:-arkcpa-slowbooks:2.10.1-ark-controller}
-    build:
-      context: .
+    # Deliberately independent of web releases. Pin this to the reviewed image
+    # digest at deployment; enabling the profile without a pin fails closed.
+    image: ${ARKCPA_CONTROLLER_IMAGE:?missing explicit ARKCPA_CONTROLLER_IMAGE}
     restart: unless-stopped
     depends_on:
       slowbooks:

@@ -8,7 +8,7 @@ uvicorn[standard]>=0.32.0,<1.0
 starlette>=1.0.1,<2.0
 
 # Database
-sqlalchemy>=2.0.40,<3.0
+sqlalchemy==2.0.53  # PostgreSQL URL defaults must stay compatible with the installed psycopg2 driver.
 alembic>=1.16.0,<2.0
 psycopg2-binary==2.9.12  # 2.9.10+ ships Python 3.13 wheels; 2.9.9 forces source build on slim images
 

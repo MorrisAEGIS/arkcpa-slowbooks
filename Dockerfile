@@ -3,7 +3,7 @@
 # Runs on Linux, macOS, and Windows via Docker Desktop
 # ============================================================================
 
-FROM python:3.13-slim AS base
+FROM python:3.13-slim@sha256:70729b46c69b4f1e97c4822c1af3df53a1476cf5ddc6c087c0c10bc3a5678c2f AS base
 
 # ---- Python 3.13 performance env ----
 # Don't write .pyc at runtime (we pre-compile at build time below)
@@ -34,10 +34,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt requirements.ark.lock ./
+RUN pip install --no-cache-dir -r requirements.txt -c requirements.ark.lock && pip check
 
 COPY . .
+
+# Catch PostgreSQL driver drift in the image even when tests use SQLite.
+RUN SESSION_SECRET_KEY=build-smoke-synthetic-not-for-runtime \
+    python -c "from sqlalchemy.dialects import registry; assert registry.load('postgresql').driver == 'psycopg2'; import app.main" \
+    && test ! -e /app/.slowbooks-session.key \
+    && test ! -e /app/.slowbooks-master.key
 
 # Pre-compile bytecode for every .py in the image (app + site-packages).
 # At runtime PYTHONDONTWRITEBYTECODE=1 prevents re-writes, so this is pure startup win.
