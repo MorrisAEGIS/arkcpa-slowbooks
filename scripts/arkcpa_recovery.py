@@ -210,13 +210,19 @@ def private_runtime_descriptors(config):
 
 
 def runtime_contract(descriptors):
-    # State/health counters can change without a configuration change.
-    return {
-        kind: {
-            key: item[key] for key in ("Id", "Image", "Config", "HostConfig", "Mounts")
+    # Docker serializes Mounts from an unordered map; order can differ on back-to-
+    # back inspect calls. Preserve every mount field but canonicalize that list.
+    # State/health counters are observations, not effective configuration.
+    stable = {}
+    for kind, item in descriptors.items():
+        stable[kind] = {
+            key: item[key] for key in ("Id", "Image", "Config", "HostConfig")
         }
-        for kind, item in descriptors.items()
-    }
+        stable[kind]["Mounts"] = sorted(
+            item["Mounts"], key=lambda mount: json.dumps(mount, sort_keys=True)
+        )
+        stable[kind]["Networks"] = item.get("NetworkSettings", {}).get("Networks", {})
+    return hashlib.sha256(json.dumps(stable, sort_keys=True).encode()).hexdigest()
 
 
 def sql(container, database, query):

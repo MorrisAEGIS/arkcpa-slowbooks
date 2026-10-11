@@ -1,6 +1,7 @@
 """Recovery boundaries: unsafe content, inventory changes and false receipts."""
 
 import importlib.util
+import copy
 import io
 import json
 from pathlib import Path
@@ -14,6 +15,62 @@ SPEC = importlib.util.spec_from_file_location(
 )
 recovery = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(recovery)
+
+
+@pytest.fixture
+def runtime_descriptor():
+    return {
+        "app": {
+            "Id": "a" * 64,
+            "Image": "sha256:" + "b" * 64,
+            "State": {
+                "Status": "running",
+                "Health": {"Status": "healthy", "Log": [{"Output": "old"}]},
+            },
+            "Config": {"Env": ["PRIVATE=synthetic"], "Cmd": ["serve"]},
+            "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}},
+            "Mounts": [
+                {"Source": "/first", "Destination": "/uploads", "RW": True},
+                {"Source": "/second", "Destination": "/ark-files", "RW": False},
+            ],
+            "NetworkSettings": {
+                "Networks": {"private": {"NetworkID": "network-a", "Aliases": ["app"]}}
+            },
+        }
+    }
+
+
+def test_runtime_fingerprint_allows_health_and_mount_order_noise(runtime_descriptor):
+    before = recovery.runtime_contract(runtime_descriptor)
+    changed = copy.deepcopy(runtime_descriptor)
+    changed["app"]["State"]["Health"]["Log"].append(
+        {"Output": "new health observation"}
+    )
+    changed["app"]["State"]["Health"]["Status"] = "starting"
+    changed["app"]["Mounts"].reverse()
+    assert recovery.runtime_contract(changed) == before
+
+
+@pytest.mark.parametrize(
+    "mutation", ["env", "mount", "identity", "image", "network", "restart"]
+)
+def test_runtime_fingerprint_rejects_effective_change(runtime_descriptor, mutation):
+    before = recovery.runtime_contract(runtime_descriptor)
+    changed = copy.deepcopy(runtime_descriptor)
+    app = changed["app"]
+    if mutation == "env":
+        app["Config"]["Env"] = ["PRIVATE=different"]
+    elif mutation == "mount":
+        app["Mounts"][0]["Source"] = "/different-source"
+    elif mutation == "identity":
+        app["Id"] = "c" * 64
+    elif mutation == "image":
+        app["Image"] = "sha256:" + "d" * 64
+    elif mutation == "network":
+        app["NetworkSettings"]["Networks"]["private"]["NetworkID"] = "different-network"
+    else:
+        app["HostConfig"]["RestartPolicy"]["Name"] = "no"
+    assert recovery.runtime_contract(changed) != before
 
 
 @pytest.mark.parametrize(
