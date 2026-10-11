@@ -295,6 +295,8 @@ _INTENTIONAL_BACKEND_ONLY: set[tuple[str, str]] = {
     ("POST", "/api/payroll/forms/w3/{year}"),
     ("POST", "/api/payroll/forms/940/{year}"),
     ("POST", "/api/payroll/forms/941/{year}/{quarter}"),
+    # Explicit issue is the SPA action; /send remains an API compatibility alias.
+    ("POST", "/api/invoices/{invoice_id}/send"),
     # /decision is the canonical endpoint; /approve and /reject are aliases
     # the SPA actually calls. Decision route stays for scripts / API users.
     ("POST", "/api/pto/requests/{request_id}/decision"),

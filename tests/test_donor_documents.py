@@ -111,7 +111,13 @@ def test_fair_value_is_validated_against_the_total(
     assert _receipt(client, seed_customer.id, fair_value_amount="-1").status_code == 400
     inv = _receipt(client, seed_customer.id, fair_value_amount="20").json()["invoice"]
     r = client.put(f"/api/invoices/{inv['id']}", json={"fair_value_amount": "999"})
-    assert r.status_code == 400
+    assert r.status_code == 409  # A posted receipt is immutable.
+    draft = client.post(f"/api/invoices/{inv['id']}/duplicate")
+    assert draft.status_code == 201, draft.text
+    r = client.put(
+        f"/api/invoices/{draft.json()['id']}", json={"fair_value_amount": "999"}
+    )
+    assert r.status_code == 400  # Editable drafts retain amount validation.
 
 
 def test_business_mode_receipt_is_untouched(client, seed_accounts, seed_customer):
@@ -434,7 +440,9 @@ def _giving_year(client, seed_accounts, seed_customer):
             "lines": [{"description": "pledge", "quantity": 1, "rate": "100"}],
         },
     ).json()
-    client.post(
+    issued = client.post(f"/api/invoices/{pledge['id']}/issue")
+    assert issued.status_code == 200, issued.text
+    paid = client.post(
         "/api/payments",
         json={
             "customer_id": seed_customer.id,
@@ -443,6 +451,7 @@ def _giving_year(client, seed_accounts, seed_customer):
             "allocations": [{"invoice_id": pledge["id"], "amount": "100"}],
         },
     )
+    assert paid.status_code == 201, paid.text
     client.post(
         "/api/payments",
         json={"customer_id": seed_customer.id, "date": "2026-03-01", "amount": "500"},

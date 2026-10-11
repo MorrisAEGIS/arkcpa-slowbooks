@@ -69,6 +69,8 @@ def test_payment_cannot_exceed_invoice_balance(
             ],
         },
     ).json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
     over = client.post(
         "/api/payments",
         json={

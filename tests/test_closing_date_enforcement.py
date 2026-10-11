@@ -212,6 +212,8 @@ def test_create_payment_respects_closing_date(
     )
     assert r.status_code == 201, r.text
     inv = r.json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     _set_closing_date(client, _CLOSING_DATE)
     r = client.post(
@@ -421,16 +423,17 @@ def test_create_journal_entry_after_closing_date_ok(db_session, seed_accounts):
     assert txn.id is not None
 
 
-def test_recurring_service_respects_closing_date(
+def test_recurring_draft_generation_defers_closed_period_guard_until_issue(
     db_session, seed_accounts, seed_customer
 ):
-    """The recurring-invoice generator posts JEs via create_journal_entry with
-    a date of rec.next_due. If that date is in a closed period, generation must
-    be blocked by the shared guard — this path has no route-level check."""
+    """A generated draft is allowed; issue cannot post into a closed period."""
     from datetime import date
 
     from fastapi import HTTPException
 
+    from app.models.invoices import Invoice, InvoiceStatus
+    from app.models.transactions import Transaction
+    from app.services.invoice_lifecycle import issue_invoice
     from app.models.recurring import RecurringInvoice, RecurringInvoiceLine
     from app.services.recurring_service import generate_due_invoices
 
@@ -458,9 +461,17 @@ def test_recurring_service_respects_closing_date(
 
     _set_closing_date_db(db_session, _CLOSING_DATE)
 
+    generated = generate_due_invoices(db_session, as_of=date(2025, 7, 1))
+    assert len(generated) == 1
+    invoice = db_session.get(Invoice, generated[0])
+    assert invoice.status == InvoiceStatus.DRAFT
+    assert invoice.transaction_id is None and invoice.balance_due == 0
+    assert db_session.query(Transaction).count() == 0
     with pytest.raises(HTTPException) as exc:
-        generate_due_invoices(db_session, as_of=date(2025, 7, 1))
+        issue_invoice(db_session, invoice.id)
     assert exc.value.status_code == 403
+    assert db_session.query(Transaction).count() == 0
+    assert invoice.transaction_id is None and invoice.balance_due == 0
 
 
 def test_create_batch_payment_respects_closing_date(
@@ -477,6 +488,8 @@ def test_create_batch_payment_respects_closing_date(
     )
     assert r.status_code == 201, r.text
     inv = r.json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     _set_closing_date(client, _CLOSING_DATE)
     r = client.post(

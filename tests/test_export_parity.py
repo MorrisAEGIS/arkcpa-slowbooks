@@ -121,6 +121,8 @@ def _seed(client, db_session, seed_customer):
         },
     )
     assert inv.status_code in (200, 201), inv.text
+    issued = client.post(f"/api/invoices/{inv.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
     return cls, job, vendor
 
 

@@ -203,6 +203,7 @@ def test_nonprofit_year_through_the_api(client, seed_accounts, monkeypatch):
             },
         )
     )
+    _ok(keeper.post(f"/api/invoices/{award['id']}/issue"))
     _ok(
         keeper.post(
             "/api/payments",
@@ -248,6 +249,8 @@ def test_nonprofit_year_through_the_api(client, seed_accounts, monkeypatch):
     )
     jan = _ok(keeper.post("/api/recurring/generate?as_of=2026-01-10"))["invoice_ids"][0]
     feb = _ok(keeper.post("/api/recurring/generate?as_of=2026-02-10"))["invoice_ids"][0]
+    for invoice_id in (jan, feb):
+        _ok(keeper.post(f"/api/invoices/{invoice_id}/issue"))
     got = keeper.get(f"/api/invoices/{jan}").json()
     assert got["recurring_invoice_id"] == pledge["id"] and got["is_pledge"] is True
     _ok(

@@ -183,7 +183,7 @@ def test_recurring_template_keeps_flags_on_generated_invoices(
 
 def test_sales_tax_report_uses_the_taxable_base(client, seed_accounts, seed_customer):
     labor = _item(client, "Labor", 100, False)
-    client.post(
+    inv = client.post(
         "/api/invoices",
         json={
             "customer_id": seed_customer.id,
@@ -195,6 +195,9 @@ def test_sales_tax_report_uses_the_taxable_base(client, seed_accounts, seed_cust
             ],
         },
     )
+    assert inv.status_code == 201, inv.text
+    issued = client.post(f"/api/invoices/{inv.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
     rep = client.get(
         "/api/reports/sales-tax?start_date=2026-07-01&end_date=2026-07-31"
     ).json()

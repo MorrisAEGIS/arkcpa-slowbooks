@@ -146,6 +146,8 @@ def test_invoice_posting_carries_class(
     assert resp.status_code in (200, 201), resp.text
     inv = resp.json()
     assert inv["class_id"] == cls["id"]
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
     txn = (
         db_session.query(Transaction)
         .filter(

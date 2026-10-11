@@ -57,6 +57,8 @@ def test_payment_void_restores_invoice_balance(
     )
     assert r.status_code == 201, r.text
     inv = r.json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
     inv_total = Decimal(str(inv["total"]))
 
     r = client.post(
@@ -114,6 +116,8 @@ def test_partial_payment_void_restores_partial_balance(
     )
     assert r.status_code == 201, r.text
     inv = r.json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     # First payment: $100 of $300
     r = client.post(
@@ -238,9 +242,11 @@ def test_invoice_void_without_payments_zeros_balance_and_keeps_ledger_balanced(
     )
     assert r.status_code == 201, r.text
     inv = r.json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     dr_before, cr_before = _ledger_balanced(db_session)
-    assert dr_before == cr_before
+    assert dr_before == cr_before == Decimal("400")
 
     r = client.post(f"/api/invoices/{inv['id']}/void")
     assert r.status_code == 200, r.text
@@ -271,6 +277,8 @@ def test_invoice_void_with_payments_rejects_to_protect_ledger(
         },
     )
     inv = r.json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     r = client.post(
         "/api/payments",
@@ -312,6 +320,8 @@ def test_double_void_is_idempotent_or_rejected(
         },
     )
     inv = r.json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     r = client.post(
         "/api/payments",
@@ -323,6 +333,7 @@ def test_double_void_is_idempotent_or_rejected(
             "allocations": [{"invoice_id": inv["id"], "amount": 80.0}],
         },
     )
+    assert r.status_code == 201, r.text
     payment_id = r.json()["id"]
 
     r = client.post(f"/api/payments/{payment_id}/void")

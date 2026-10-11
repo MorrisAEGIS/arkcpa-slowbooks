@@ -69,6 +69,8 @@ def _build_scenario(client, customer_id, vendor_id):
     assert r.status_code == 201, r.text
     inv_paid = r.json()
     ids["inv_paid"] = inv_paid["id"]
+    issued = client.post(f"/api/invoices/{inv_paid['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     r = client.post(
         "/api/invoices",
@@ -90,8 +92,10 @@ def _build_scenario(client, customer_id, vendor_id):
     assert r.status_code == 201, r.text
     inv_partial = r.json()
     ids["inv_partial"] = inv_partial["id"]
+    issued = client.post(f"/api/invoices/{inv_partial['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
-    # A draft invoice — should appear in AR but never on P&L until sent+paid.
+    # A draft remains outside receivables and accrual income until issue.
     r = client.post(
         "/api/invoices",
         json={
@@ -111,6 +115,8 @@ def _build_scenario(client, customer_id, vendor_id):
     assert r.status_code == 201, r.text
     inv_draft = r.json()
     ids["inv_draft"] = inv_draft["id"]
+    assert inv_draft["transaction_id"] is None
+    assert Decimal(inv_draft["balance_due"]) == 0
 
     # Full payment on inv_paid
     r = client.post(

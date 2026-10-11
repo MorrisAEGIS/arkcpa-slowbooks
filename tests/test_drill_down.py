@@ -26,13 +26,15 @@ def _mk_invoice(client, customer_id, *, amount, date_="2026-04-01", tax_rate="0"
         },
     )
     assert r.status_code == 201, r.text
-    return r.json()
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
+    return issued.json()
 
 
 def test_drill_down_returns_entries_for_account(
     client, db_session, seed_accounts, seed_customer
 ):
-    """After creating an invoice, drilling into AR should show the invoice line."""
+    """After issuing an invoice, drilling into AR should show the invoice line."""
     _mk_invoice(client, seed_customer.id, amount="250.00")
 
     ar_acct = db_session.query(Account).filter_by(account_number="1100").first()

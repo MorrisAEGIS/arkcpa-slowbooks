@@ -43,6 +43,9 @@ def test_pledge_report_reconciles_through_payment_write_off_and_void(
     feb = _generate(client, "2026-02-15")
     assert len(jan) == 1 and len(feb) == 1
     jan_inv, feb_inv = jan[0], feb[0]
+    for invoice_id in (jan_inv, feb_inv):
+        issued = client.post(f"/api/invoices/{invoice_id}/issue")
+        assert issued.status_code == 200, issued.text
     got = client.get(f"/api/invoices/{jan_inv}").json()
     assert got["recurring_invoice_id"] == rec["id"] and got["is_pledge"] is True
 
@@ -186,6 +189,8 @@ def test_one_off_pledge_and_exports(client, seed_accounts, seed_customer):
         },
     )
     assert r.status_code == 201, r.text
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
     qs = "start_date=2026-01-01&end_date=2026-12-31"
     rep = client.get(f"/api/reports/pledges?{qs}").json()
     assert rep["totals"]["pledged"] == 5000.0 and rep["totals"]["outstanding"] == 5000.0
@@ -200,8 +205,8 @@ def test_one_off_pledge_and_exports(client, seed_accounts, seed_customer):
         "/api/saved-reports",
         json={"name": "p", "report_type": "pledges", "parameters": {}},
     ).status_code in (200, 201)
-    # a plain invoice is not a pledge
-    client.post(
+    # An issued plain invoice is still excluded from pledge totals.
+    plain = client.post(
         "/api/invoices",
         json={
             "customer_id": seed_customer.id,
@@ -211,6 +216,9 @@ def test_one_off_pledge_and_exports(client, seed_accounts, seed_customer):
             "lines": [{"description": "Hall rental", "quantity": 1, "rate": "300"}],
         },
     )
+    assert plain.status_code == 201, plain.text
+    issued = client.post(f"/api/invoices/{plain.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
     assert (
         client.get(f"/api/reports/pledges?{qs}").json()["totals"]["pledged"] == 5000.0
     )

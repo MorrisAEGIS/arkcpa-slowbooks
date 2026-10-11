@@ -232,6 +232,8 @@ def test_batch_payment_locks_the_invoice_row(
     )
     assert r.status_code == 201, r.text
     inv = r.json()
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
     lock_log.clear()
     r = client.post(
         "/api/batch-payments",

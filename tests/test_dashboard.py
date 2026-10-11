@@ -66,6 +66,8 @@ def test_widgets_reflect_activity(client, db_session, seed_accounts, seed_custom
         },
     )
     assert inv.status_code in (200, 201), inv.text
+    issued = client.post(f"/api/invoices/{inv.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
     vendor = client.post("/api/vendors", json={"name": "V"}).json()
     client.post(
         "/api/bills",
