@@ -156,6 +156,8 @@ def test_invoice_and_bill_posting_carry_job_to_lines(
     )
     assert inv.status_code in (200, 201), inv.text
     assert inv.json()["job_id"] == job["id"]
+    issued = client.post(f"/api/invoices/{inv.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
     txn = (
         db_session.query(Transaction)
         .filter(

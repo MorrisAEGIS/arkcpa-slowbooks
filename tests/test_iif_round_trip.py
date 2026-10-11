@@ -148,6 +148,8 @@ def test_invoice_line_totals_survive_round_trip(
     )
     assert r.status_code == 201, r.text
     original = r.json()
+    issued = client.post(f"/api/invoices/{original['id']}/issue")
+    assert issued.status_code == 200, issued.text
     original_total = Decimal(str(original["total"]))
     original_subtotal = Decimal(str(original["subtotal"]))
 

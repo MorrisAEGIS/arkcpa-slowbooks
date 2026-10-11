@@ -307,7 +307,9 @@ def export_invoices(db: Session) -> dict:
     exported = 0
     errors = []
 
-    invoices = db.query(Invoice).all()
+    from app.services.invoice_lifecycle import issued_invoice_filter
+
+    invoices = db.query(Invoice).filter(issued_invoice_filter()).all()
 
     for inv in invoices:
         try:

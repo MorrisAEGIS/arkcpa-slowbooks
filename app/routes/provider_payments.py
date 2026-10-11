@@ -72,6 +72,9 @@ def create_checkout(
     )
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    from app.services.invoice_lifecycle import require_issued
+
+    require_issued(invoice)
     if invoice.status in (InvoiceStatus.PAID, InvoiceStatus.VOID):
         raise HTTPException(status_code=400, detail="Invoice is already paid or void")
     if invoice.balance_due <= 0:
@@ -187,6 +190,9 @@ def get_payment_link(invoice_id: int, request: Request, db: Session = Depends(ge
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
+    from app.services.invoice_lifecycle import require_issued
+
+    require_issued(invoice)
     if not invoice.payment_token:
         invoice.payment_token = str(uuid.uuid4())
         db.commit()

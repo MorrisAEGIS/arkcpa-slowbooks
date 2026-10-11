@@ -21,7 +21,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.classes import TxnClass
 from app.models.contacts import Customer
 from app.models.credit_memos import CreditApplication, CreditMemo, CreditMemoStatus
-from app.models.invoices import Invoice, InvoiceStatus
+from app.models.invoices import Invoice
+from app.services.invoice_lifecycle import issued_invoice_filter
 from app.models.payments import Payment, PaymentAllocation
 from app.models.recurring import RecurringInvoice
 from app.services.accounting import _q, compute_line_totals
@@ -134,7 +135,7 @@ def pledge_report(
             db.query(Invoice)
             .filter(
                 Invoice.recurring_invoice_id == rec.id,
-                Invoice.status != InvoiceStatus.VOID,
+                issued_invoice_filter(),
                 Invoice.date >= start,
                 Invoice.date <= end,
             )
@@ -163,7 +164,7 @@ def pledge_report(
         .filter(
             Invoice.is_pledge.is_(True),
             Invoice.recurring_invoice_id.is_(None),
-            Invoice.status != InvoiceStatus.VOID,
+            issued_invoice_filter(),
             Invoice.date >= start,
             Invoice.date <= end,
         )

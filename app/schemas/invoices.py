@@ -67,7 +67,7 @@ class InvoiceCreate(StrictModel):
     job_id: Optional[int] = None
     currency: Optional[str] = None
     exchange_rate: Optional[Decimal] = None
-    lines: list[InvoiceLineCreate] = []
+    lines: list[InvoiceLineCreate] = Field(min_length=1)
     # Nonprofit: pledge face; goods/services the donor received (gala dinner)
     is_pledge: bool = False
     fair_value_amount: Optional[Decimal] = None
@@ -105,6 +105,7 @@ class InvoiceResponse(BaseModel):
     invoice_number: str
     customer_id: int
     status: InvoiceStatus
+    transaction_id: Optional[int] = None
     date: dt_date
     due_date: Optional[dt_date]
     terms: Optional[str]

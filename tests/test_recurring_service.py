@@ -16,6 +16,7 @@ from app.models.recurring import RecurringInvoice, RecurringInvoiceLine
 from app.models.invoices import Invoice, InvoiceLine
 from app.models.transactions import TransactionLine
 from app.services.recurring_service import generate_due_invoices
+from app.services.invoice_lifecycle import issue_invoice
 
 
 def _make_recurring(db_session, customer_id, lines, tax_rate=Decimal("0")):
@@ -63,6 +64,10 @@ def test_simple_recurring_invoice_balances(db_session, seed_accounts, seed_custo
 
     invoice = db_session.query(Invoice).filter_by(id=ids[0]).first()
     assert invoice.total == Decimal("100.00")
+    assert invoice.balance_due == Decimal("0.00")
+    assert invoice.transaction_id is None
+    issue_invoice(db_session, invoice.id)
+    db_session.commit()
     assert invoice.balance_due == Decimal("100.00")
 
     dr, cr = _sum_debits_credits(db_session, invoice.transaction_id)
@@ -83,6 +88,9 @@ def test_recurring_invoice_with_tax_balances(db_session, seed_accounts, seed_cus
     assert invoice.subtotal == Decimal("100.00")
     assert invoice.tax_amount == Decimal("8.75")
     assert invoice.total == Decimal("108.75")
+    assert invoice.balance_due == 0 and invoice.transaction_id is None
+    issue_invoice(db_session, invoice.id)
+    db_session.commit()
 
     dr, cr = _sum_debits_credits(db_session, invoice.transaction_id)
     assert dr == cr == Decimal("108.75")
@@ -125,6 +133,9 @@ def test_subcent_line_amount_keeps_journal_balanced(
     assert (
         invoice.subtotal == sum_of_stored_lines
     ), f"subtotal {invoice.subtotal} != sum of line amounts {sum_of_stored_lines}"
+    assert invoice.balance_due == 0 and invoice.transaction_id is None
+    issue_invoice(db_session, invoice.id)
+    db_session.commit()
     assert invoice.total == invoice.balance_due
 
     dr, cr = _sum_debits_credits(db_session, invoice.transaction_id)

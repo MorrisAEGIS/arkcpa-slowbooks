@@ -45,7 +45,9 @@ def eur_invoice(client, seed_accounts, seed_customer):
         },
     )
     assert resp.status_code in (200, 201), resp.text
-    return resp.json()
+    issued = client.post(f"/api/invoices/{resp.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
+    return issued.json()
 
 
 def test_foreign_invoice_journal_in_home_currency(eur_invoice, db_session):

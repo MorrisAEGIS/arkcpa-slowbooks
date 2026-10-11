@@ -17,7 +17,8 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.items import Item, MovementType
+from app.models.items import Item, InventoryMovement, MovementType
+from app.models.invoices import InvoiceStatus
 from app.services.inventory_service import (
     record_sale,
     reverse_sale,
@@ -38,19 +39,61 @@ def post_sale_for_invoice(db: Session, invoice, txn_date=None) -> None:
     Uses invoice.date as the transaction date so the COGS posting lands in
     the same accounting period as the sale.
     """
-    date_to_use = txn_date or invoice.date
-    ref = getattr(invoice, "invoice_number", None) or f"inv#{invoice.id}"
+    if invoice.status in (InvoiceStatus.DRAFT, InvoiceStatus.VOID):
+        return  # Draft creation, conversion and generation never consume stock.
+    from fastapi import HTTPException
+
+    quantities = {}
     for line in invoice.lines:
-        item = _get_item(db, line.item_id)
+        if line.item_id:
+            quantities[line.item_id] = quantities.get(
+                line.item_id, Decimal("0")
+            ) + Decimal(str(line.quantity))
+    existing = (
+        db.query(InventoryMovement)
+        .filter(
+            InventoryMovement.source_type == "invoice",
+            InventoryMovement.source_id == invoice.id,
+        )
+        .all()
+    )
+    if existing:
+        # Issue/import retries may re-enter this hook; never silently sell twice.
+        booked = {}
+        for movement in existing:
+            booked[movement.item_id] = (
+                booked.get(movement.item_id, Decimal("0")) - movement.quantity
+            )
+        tracked = {
+            item_id: qty
+            for item_id, qty in quantities.items()
+            if (item := _get_item(db, item_id)) is not None
+            and item.track_inventory
+            and qty > 0
+        }
+        if booked != tracked:
+            raise HTTPException(
+                status_code=409,
+                detail="Invoice stock was already posted; use void and replacement",
+            )
+        return
+    for item_id, quantity in sorted(quantities.items()):
+        item = (
+            db.query(Item)
+            .filter(Item.id == item_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
         if item and item.track_inventory:
             record_sale(
                 db,
                 item,
-                quantity=Decimal(str(line.quantity)),
+                quantity=quantity,
                 source_type="invoice",
                 source_id=invoice.id,
-                memo=f"Invoice {ref}",
-                txn_date=date_to_use,
+                memo=f"Invoice {invoice.invoice_number}",
+                txn_date=txn_date or invoice.date,
             )
 
 
@@ -62,25 +105,103 @@ def reverse_sale_for_invoice(
 ) -> None:
     """Reverse every SALE movement originally booked against this invoice.
 
-    Used by void_invoice and (via update_invoice) when an edit needs to
-    recompute from scratch. Passes original_source to reverse_sale so
-    historical unit_cost is used for the reversal JE — keeps the GL balanced
-    even if avg_cost has drifted.
+    Void uses recorded movements and their original journals, including legacy
+    edits at different costs. Each item's reversal movement links to its
+    consolidated reversal journal; current item costs do not change history.
     """
-    date_to_use = txn_date or invoice.date
-    for line in invoice.lines:
-        item = _get_item(db, line.item_id)
-        if item and item.track_inventory:
-            reverse_sale(
-                db,
-                item,
-                quantity=Decimal(str(line.quantity)),
-                source_type="invoice_void",
-                source_id=invoice.id,
-                original_source_type="invoice",
-                original_source_id=invoice.id,
-                txn_date=date_to_use,
+    from fastapi import HTTPException
+    from app.models.transactions import Transaction
+    from app.services.accounting import create_journal_entry, reversing_lines
+
+    movements = (
+        db.query(InventoryMovement)
+        .filter(
+            InventoryMovement.source_type.in_(
+                ["invoice", "invoice_edit", "invoice_void"]
+            ),
+            InventoryMovement.source_id == invoice.id,
+        )
+        .order_by(InventoryMovement.id)
+        .all()
+    )
+    if not movements:
+        return
+    if any(m.source_type == "invoice_void" for m in movements):
+        raise HTTPException(
+            status_code=409,
+            detail="Prior invoice stock reversal requires reconciliation",
+        )
+    # Reverse the actual historical journals, including old edit adjustments.
+    # Using today's cost or the last sale's cost would misstate a mixed-cost void.
+    original_owners, lines_by_item = {}, {}
+    for movement in movements:
+        if movement.transaction_id is None:
+            continue
+        owner = original_owners.get(movement.transaction_id)
+        if owner is not None:
+            if owner != movement.item_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Shared stock journal requires reconciliation",
+                )
+            continue
+        original = db.get(Transaction, movement.transaction_id)
+        if original is None:
+            raise HTTPException(
+                status_code=409, detail="Missing stock journal; reconcile before void"
             )
+        lines_by_item.setdefault(movement.item_id, []).extend(
+            reversing_lines(original.lines)
+        )
+        original_owners[movement.transaction_id] = movement.item_id
+    quantities, values = {}, {}
+    for movement in movements:
+        item_id = movement.item_id
+        quantities[item_id] = quantities.get(item_id, Decimal("0")) - movement.quantity
+        values[item_id] = (
+            values.get(item_id, Decimal("0")) - movement.quantity * movement.unit_cost
+        )
+    for item_id, quantity in sorted(quantities.items()):
+        if quantity < 0 or values[item_id] < 0:
+            raise HTTPException(
+                status_code=409,
+                detail="Stock reversals exceed sales; reconcile before void",
+            )
+        item = (
+            db.query(Item)
+            .filter(Item.id == item_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if item is None:
+            raise HTTPException(
+                status_code=409, detail="Stock item is missing; reconcile before void"
+            )
+        transaction_id = None
+        if lines_by_item.get(item_id):
+            reversal = create_journal_entry(
+                db,
+                txn_date or invoice.date,
+                f"VOID stock: Invoice {invoice.invoice_number}",
+                lines_by_item[item_id],
+                source_type="invoice_stock_void",
+                source_id=invoice.id,
+                reference=invoice.invoice_number,
+            )
+            transaction_id = reversal.id
+        # Restore historical custody even if tracking was disabled after issue.
+        _append_movement(
+            db,
+            item,
+            MovementType.VOID,
+            quantity=quantity,
+            unit_cost=values[item_id] / quantity if quantity else Decimal("0"),
+            transaction_id=transaction_id,
+            source_type="invoice_void",
+            source_id=invoice.id,
+            memo=memo,
+        )
 
 
 def post_return_for_credit_memo(db: Session, credit_memo, txn_date=None) -> None:

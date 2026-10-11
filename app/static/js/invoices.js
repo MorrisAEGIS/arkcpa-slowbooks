@@ -7,6 +7,7 @@ const InvoicesPage = {
     // The document's literal face, as the PDF prints it: a flagged pledge is a
     // PLEDGE, everything else an INVOICE regardless of company vocabulary.
     docLabel(inv) { return inv.is_pledge ? 'Pledge' : 'Invoice'; }, // literal face
+    statusLabel(inv) { return inv.status === 'sent' ? '<span class="badge badge-info">Issued</span>' : statusBadge(inv.status); },
 
     async render() {
         // Sales receipts are invoices under the hood; they get their own
@@ -18,7 +19,7 @@ const InvoicesPage = {
             filter: {
                 id: 'inv-status-filter',
                 rowSelector: '.inv-row',
-                options: [['draft', 'Draft'], ['sent', 'Sent'], ['partial', 'Partial'], ['paid', 'Paid'], ['void', 'Void']],
+                options: [['draft', 'Draft'], ['sent', 'Issued'], ['partial', 'Partial'], ['paid', 'Paid'], ['void', 'Void']],
             },
             empty: Terms.text(`<p>No invoices yet.</p>
                 <button class="btn btn-primary" onclick="InvoicesPage.showForm()" style="margin-top:10px;">+ Create your first invoice</button>`),
@@ -30,13 +31,13 @@ const InvoicesPage = {
                     <td>${escapeHtml(inv.customer_name || '')}</td>
                     <td>${formatDate(inv.date)}</td>
                     <td>${formatDate(inv.due_date)}</td>
-                    <td>${statusBadge(inv.status)}</td>
+                    <td>${InvoicesPage.statusLabel(inv)}</td>
                     <td class="amount">${formatCurrency(inv.total)}</td>
                     <td class="amount">${formatCurrency(inv.balance_due)}</td>
                     <td class="actions">
                         <button class="btn btn-sm btn-secondary" onclick="InvoicesPage.view(${inv.id})">View</button>
-                        <button class="btn btn-sm btn-secondary" onclick="InvoicesPage.showForm(${inv.id})">Edit</button>
-                        ${inv.status === 'draft' ? `<button class="btn btn-sm btn-primary" onclick="InvoicesPage.markSent(${inv.id})">Mark Sent</button>` : ''}
+                        ${inv.status === 'draft' && !inv.transaction_id ? `<button class="btn btn-sm btn-secondary" onclick="InvoicesPage.showForm(${inv.id})">Edit Draft</button>` : ''}
+                        ${inv.status === 'draft' ? `<button class="btn btn-sm btn-primary" onclick="InvoicesPage.markSent(${inv.id})">Issue Invoice</button>` : ''}
                         ${Terms.isNonprofit() && inv.status !== 'void' && parseFloat(inv.balance_due) > 0 ? `<button class="btn btn-sm btn-secondary" onclick="InvoicesPage.showWriteOff(${inv.id}, ${parseFloat(inv.balance_due)})">Write Off</button>` : ''}
                     </td>
                 </tr>`,
@@ -86,7 +87,7 @@ const InvoicesPage = {
                 <strong>${T('Customer')}:</strong> ${escapeHtml(inv.customer_name || '')}<br>
                 <strong>Date:</strong> ${formatDate(inv.date)}<br>
                 <strong>Due:</strong> ${formatDate(inv.due_date)}<br>
-                <strong>Status:</strong> ${statusBadge(inv.status)}<br>
+                <strong>Status:</strong> ${InvoicesPage.statusLabel(inv)}<br>
                 ${inv.po_number ? `<strong>PO#:</strong> ${escapeHtml(inv.po_number)}<br>` : ''}
             </div>
             <div class="table-container"><table>
@@ -100,6 +101,7 @@ const InvoicesPage = {
                 <div class="total-row"><span class="label">Paid</span><span class="value">${formatCurrency(inv.amount_paid)}</span></div>
                 <div class="total-row grand-total"><span class="label">Balance Due</span><span class="value">${formatCurrency(inv.balance_due)}</span></div>
             </div>
+            ${inv.status === 'draft' && !inv.transaction_id ? '<p>Draft: no receivable or stock has been posted. Review the total, then choose Issue Invoice.</p>' : '<p>Issued invoices are locked. Use void and a replacement draft for corrections.</p>'}
             ${inv.notes ? `<p style="margin-top:12px;color:var(--gray-500);">${escapeHtml(inv.notes)}</p>` : ''}
             <div style="margin-top:16px; border-top:1px solid var(--gray-200); padding-top:12px;">
                 <h3 style="font-size:13px; margin-bottom:8px;">Attachments</h3>
@@ -111,10 +113,10 @@ const InvoicesPage = {
                 <button class="btn btn-secondary" onclick="window.open('/api/invoices/${inv.id}/pdf','_blank')">Save PDF</button>
                 <button class="btn btn-secondary" onclick="window.open('/api/invoices/${inv.id}/print-preview','_blank')">Print</button>
                 <button class="btn btn-secondary" onclick="InvoicesPage.duplicate(${inv.id})">Duplicate</button>
-                <button class="btn btn-secondary" onclick="InvoicesPage.emailInvoice(${inv.id})">Email ${T('Invoice')}</button>
-                <button class="btn btn-secondary" onclick="InvoicesPage.copyPaymentLink(${inv.id})">Copy Payment Link</button>
+                ${inv.status !== 'void' && (inv.status !== 'draft' || inv.transaction_id) ? `<button class="btn btn-secondary" onclick="InvoicesPage.emailInvoice(${inv.id})">Email ${T('Invoice')}</button>` : ''}
+                ${inv.status !== 'void' && (inv.status !== 'draft' || inv.transaction_id) ? `<button class="btn btn-secondary" onclick="InvoicesPage.copyPaymentLink(${inv.id})">Copy Payment Link</button>` : ''}
                 ${inv.checkout_provider && inv.status !== 'paid' && inv.status !== 'void' ? `<button class="btn btn-secondary" onclick="InvoicesPage.checkPaymentStatus(${inv.id}, '${inv.checkout_provider}')">Check Payment Status</button>` : ''}
-                ${inv.status === 'draft' ? `<button class="btn btn-primary" onclick="InvoicesPage.markSent(${inv.id})">Mark Sent</button>` : ''}
+                ${inv.status === 'draft' ? `<button class="btn btn-primary" onclick="InvoicesPage.markSent(${inv.id})">Issue Invoice</button>` : ''}
                 ${inv.status !== 'void' ? `<button class="btn btn-danger" onclick="InvoicesPage.void(${inv.id})">Void ${T('Invoice')}</button>` : ''}
                 <button class="btn btn-secondary" onclick="closeModal()">Close</button>
             </div>`);
@@ -132,9 +134,10 @@ const InvoicesPage = {
     },
 
     async markSent(id) {
+        if (!confirm("Issue this invoice? This records the receivable and consumes tracked stock. Email is a separate action.")) return;
         try {
-            await API.post(`/invoices/${id}/send`);
-            toast(`${T('Invoice')} marked as sent`);
+            await API.post(`/invoices/${id}/issue`);
+            toast(`${T('Invoice')} issued. Email it separately when ready.`);
             closeModal();
             App.navigate(location.hash);
         } catch (err) { toast(err.message, 'error'); }
@@ -467,7 +470,7 @@ const InvoicesPage = {
 
         try {
             if (id) { await API.put(`/invoices/${id}`, data); toast(Terms.text('Invoice updated')); }
-            else { await API.post('/invoices', data); toast(Terms.text('Invoice created')); }
+            else { await API.post('/invoices', data); toast(Terms.text('Invoice draft saved; review and issue it when ready')); }
             closeModal();
             App.navigate(location.hash);
         } catch (err) { toast(err.message, 'error'); }

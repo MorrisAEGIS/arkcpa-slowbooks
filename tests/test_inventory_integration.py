@@ -88,13 +88,28 @@ def _create_invoice(
         },
     )
     assert r.status_code == 201, r.text
-    return r.json()
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
+    return issued.json()
+
+
+def _replace_issued_invoice(client, invoice_id, json):
+    # Financial corrections are explicit reversals and replacement documents.
+    blocked = client.put(f"/api/invoices/{invoice_id}", json=json)
+    assert blocked.status_code == 409, blocked.text
+    assert client.post(f"/api/invoices/{invoice_id}/void").status_code == 200
+    replacement = client.post(f"/api/invoices/{invoice_id}/duplicate")
+    assert replacement.status_code == 201, replacement.text
+    replacement_id = replacement.json()["id"]
+    edit = client.put(f"/api/invoices/{replacement_id}", json=json)
+    assert edit.status_code == 200, edit.text
+    return client.post(f"/api/invoices/{replacement_id}/issue")
 
 
 # -------- Test 1: Invoice PUT reconciles inventory --------
 
 
-def test_invoice_edit_increases_qty_posts_additional_sale(
+def test_invoice_replacement_increases_qty_after_reversal(
     client, db_session, seed_accounts, seed_customer
 ):
     vendor = _seed_vendor(db_session)
@@ -109,8 +124,9 @@ def test_invoice_edit_increases_qty_posts_additional_sale(
 
     # Edit from qty=2 to qty=5. The delta is +3; inventory should drop
     # another 3 units.
-    r = client.put(
-        f"/api/invoices/{inv['id']}",
+    r = _replace_issued_invoice(
+        client,
+        inv["id"],
         json={
             "tax_rate": "0",
             "lines": [
@@ -130,7 +146,7 @@ def test_invoice_edit_increases_qty_posts_additional_sale(
     assert Decimal(str(item.quantity_on_hand)) == Decimal("5")
 
 
-def test_invoice_edit_decreases_qty_reverses_sale(
+def test_invoice_replacement_decreases_qty_after_reversal(
     client, db_session, seed_accounts, seed_customer
 ):
     vendor = _seed_vendor(db_session)
@@ -144,8 +160,9 @@ def test_invoice_edit_decreases_qty_reverses_sale(
     assert Decimal(str(item.quantity_on_hand)) == Decimal("5")
 
     # Reduce to qty=2 — should return 3 units
-    r = client.put(
-        f"/api/invoices/{inv['id']}",
+    r = _replace_issued_invoice(
+        client,
+        inv["id"],
         json={
             "tax_rate": "0",
             "lines": [
@@ -182,6 +199,10 @@ def test_invoice_duplicate_posts_new_sale(
 
     r = client.post(f"/api/invoices/{inv['id']}/duplicate")
     assert r.status_code == 201, r.text
+    db_session.expire_all()
+    assert item.quantity_on_hand == 17  # A duplicate remains a draft.
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     db_session.expire_all()
     item = db_session.query(Item).filter_by(id=item.id).first()
@@ -228,6 +249,10 @@ def test_estimate_convert_triggers_inventory(
     # Convert to invoice
     r = client.post(f"/api/estimates/{est_id}/convert")
     assert r.status_code == 200, r.text
+    db_session.expire_all()
+    assert item.quantity_on_hand == 10  # Conversion saves a draft only.
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     db_session.expire_all()
     item = db_session.query(Item).filter_by(id=item.id).first()

@@ -78,10 +78,12 @@ def create_sales_receipt(data: SalesReceiptCreate, db: Session = Depends(get_db)
         db,
     )
     invoice = db.query(Invoice).filter(Invoice.id == inv_resp.id).first()
-    invoice.is_sales_receipt = True
-    db.commit()
-
     try:
+        from app.services.invoice_lifecycle import issue_invoice
+
+        issue_invoice(db, invoice.id)
+        invoice.is_sales_receipt = True
+        db.commit()
         pay_resp = create_payment(
             PaymentCreate(
                 customer_id=data.customer_id,

@@ -1,6 +1,6 @@
 """Smoke tests for the invoice posting path.
 
-Goal: prove that creating, paying, and voiding an invoice produces correct,
+Goal: prove that issuing, paying, and voiding an invoice produces correct,
 balanced journal entries and keeps Invoice.balance_due consistent.
 """
 
@@ -24,7 +24,9 @@ def _create_invoice(client, customer_id, amount="100.00", tax_rate="0", qty="1")
     }
     r = client.post("/api/invoices", json=body)
     assert r.status_code == 201, r.text
-    return r.json()
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
+    return issued.json()
 
 
 def _sum_debits_credits(db_session, txn_id):
@@ -37,7 +39,7 @@ def _sum_debits_credits(db_session, txn_id):
     )
 
 
-def test_create_invoice_produces_balanced_journal(
+def test_issue_invoice_produces_balanced_journal(
     client, db_session, seed_accounts, seed_customer
 ):
     inv = _create_invoice(client, seed_customer.id, amount="100.00")
@@ -54,7 +56,7 @@ def test_create_invoice_produces_balanced_journal(
     assert dr == cr == Decimal("100.00")
 
 
-def test_create_invoice_with_tax_balances(
+def test_issue_invoice_with_tax_balances(
     client, db_session, seed_accounts, seed_customer
 ):
     inv = _create_invoice(client, seed_customer.id, amount="100.00", tax_rate="0.0875")

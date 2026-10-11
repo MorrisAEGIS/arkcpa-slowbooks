@@ -24,6 +24,30 @@ from app.services.overtime import classify_period
 router = APIRouter(prefix="/api/time-entries", tags=["time-entries"])
 
 
+def _locked_entry(db: Session, entry_id: int) -> TimeEntry:
+    entry = (
+        db.query(TimeEntry)
+        .filter(TimeEntry.id == entry_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Time entry not found")
+    return entry
+
+
+def _require_mutable(entry: TimeEntry, *, allow_cost_reversal: bool = False) -> None:
+    if entry.pay_run_id is not None:
+        raise HTTPException(status_code=400, detail="Time entry is locked to a pay run")
+    if entry.job_cost_id is not None and not allow_cost_reversal:
+        raise HTTPException(
+            status_code=409,
+            detail="Time entry is posted to a job. Reject it to reverse the job cost "
+            "before editing, then submit and approve the corrected entry.",
+        )
+
+
 def _resp(entry: TimeEntry) -> TimeEntryResponse:
     r = TimeEntryResponse.model_validate(entry)
     if entry.employee:
@@ -108,22 +132,22 @@ def create_time_entry(data: TimeEntryCreate, db: Session = Depends(get_db)):
 def update_time_entry(
     entry_id: int, data: TimeEntryUpdate, db: Session = Depends(get_db)
 ):
-    entry = db.query(TimeEntry).filter(TimeEntry.id == entry_id).first()
-    if not entry:
-        raise HTTPException(status_code=404, detail="Time entry not found")
-    if entry.pay_run_id is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="Time entry is locked to a pay run and cannot be edited",
-        )
+    entry = _locked_entry(db, entry_id)
+    _require_mutable(entry)
     fields = data.model_dump(exclude_unset=True)
     if "status" in fields:
-        try:
-            fields["status"] = TimeEntryStatus(fields["status"])
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid status")
+        if fields.pop("status") != entry.status:
+            raise HTTPException(
+                status_code=409,
+                detail="Use the submit, approve or reject action to change status",
+            )
     for key, val in fields.items():
         setattr(entry, key, val)
+    if fields:
+        # Approval applies to the reviewed values, not subsequent revisions.
+        entry.status = TimeEntryStatus.DRAFT
+        entry.approved_by = None
+        entry.approved_at = None
     db.commit()
     db.refresh(entry)
     return _resp(entry)
@@ -131,14 +155,8 @@ def update_time_entry(
 
 @router.delete("/{entry_id}")
 def delete_time_entry(entry_id: int, db: Session = Depends(get_db)):
-    entry = db.query(TimeEntry).filter(TimeEntry.id == entry_id).first()
-    if not entry:
-        raise HTTPException(status_code=404, detail="Time entry not found")
-    if entry.pay_run_id is not None:
-        raise HTTPException(
-            status_code=400,
-            detail="Time entry is locked to a pay run and cannot be deleted",
-        )
+    entry = _locked_entry(db, entry_id)
+    _require_mutable(entry)
     db.delete(entry)
     db.commit()
     return {"status": "deleted", "id": entry_id}
@@ -146,10 +164,11 @@ def delete_time_entry(entry_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{entry_id}/submit", response_model=TimeEntryResponse)
 def submit_time_entry(entry_id: int, db: Session = Depends(get_db)):
-    entry = db.query(TimeEntry).filter(TimeEntry.id == entry_id).first()
-    if not entry:
-        raise HTTPException(status_code=404, detail="Time entry not found")
+    entry = _locked_entry(db, entry_id)
+    _require_mutable(entry)
     entry.status = TimeEntryStatus.SUBMITTED
+    entry.approved_by = None
+    entry.approved_at = None
     db.commit()
     db.refresh(entry)
     return _resp(entry)
@@ -159,11 +178,15 @@ def submit_time_entry(entry_id: int, db: Session = Depends(get_db)):
 def approve_time_entry(
     entry_id: int, data: TimeEntryApprove, db: Session = Depends(get_db)
 ):
-    entry = db.query(TimeEntry).filter(TimeEntry.id == entry_id).first()
-    if not entry:
-        raise HTTPException(status_code=404, detail="Time entry not found")
+    entry = _locked_entry(db, entry_id)
+    _require_mutable(entry)
+    approver = db.info.get("acting_username")
+    if not approver:
+        raise HTTPException(status_code=403, detail="A verified approver is required")
     entry.status = TimeEntryStatus.APPROVED
-    entry.approved_by = data.approved_by
+    # Retain the request field for old clients; identity comes from the
+    # authenticated company session, never an arbitrary submitted name.
+    entry.approved_by = approver
     entry.approved_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(entry)
@@ -194,10 +217,9 @@ def post_entry_to_job(entry_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{entry_id}/reject", response_model=TimeEntryResponse)
 def reject_time_entry(entry_id: int, db: Session = Depends(get_db)):
-    entry = db.query(TimeEntry).filter(TimeEntry.id == entry_id).first()
-    if not entry:
-        raise HTTPException(status_code=404, detail="Time entry not found")
-    # A submitted entry may already be posted to its job; rejecting it has
+    entry = _locked_entry(db, entry_id)
+    _require_mutable(entry, allow_cost_reversal=True)
+    # A historical submitted entry may already be posted; rejecting it has
     # to take that labor cost back off the job, not leave it behind.
     if entry.job_cost_id:
         from app.models.job_costing import JobCost
@@ -213,6 +235,8 @@ def reject_time_entry(entry_id: int, db: Session = Depends(get_db)):
                 raise HTTPException(status_code=400, detail=str(exc))
         entry.job_cost_id = None
     entry.status = TimeEntryStatus.REJECTED
+    entry.approved_by = None
+    entry.approved_at = None
     db.commit()
     db.refresh(entry)
     return _resp(entry)

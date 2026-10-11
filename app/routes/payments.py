@@ -114,21 +114,29 @@ def create_payment(data: PaymentCreate, db: Session = Depends(get_db)):
     # invoice's booked rate) — the FX gain/loss basis.
     ar_home_credits: list[Decimal] = []
     # Apply allocations to invoices
-    for alloc_data in data.allocations:
+    for alloc_data in sorted(
+        data.allocations, key=lambda allocation: allocation.invoice_id
+    ):
         # Lock the invoice row for the read-check-write so two concurrent
         # payments to the same invoice can't both pass the balance check and
         # over-apply (driving balance_due negative). No-op on SQLite; real
         # row lock on Postgres.
+        # Preserve prior allocations in this same transaction before refreshing.
+        db.flush()
         invoice = (
             db.query(Invoice)
             .filter(Invoice.id == alloc_data.invoice_id)
             .with_for_update()
+            .populate_existing()
             .first()
         )
         if not invoice:
             raise HTTPException(
                 status_code=404, detail=f"Invoice {alloc_data.invoice_id} not found"
             )
+        from app.services.invoice_lifecycle import require_issued
+
+        require_issued(invoice)
         if alloc_data.amount > invoice.balance_due:
             raise HTTPException(
                 status_code=400,
@@ -235,13 +243,39 @@ def void_payment(payment_id: int, db: Session = Depends(get_db)):
     # Row-lock the payment so two concurrent voids can't both pass the
     # is_voided guard and post duplicate reversing JEs.
     payment = (
-        db.query(Payment).filter(Payment.id == payment_id).with_for_update().first()
+        db.query(Payment)
+        .filter(Payment.id == payment_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
     )
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
     if payment.is_voided:
         raise HTTPException(status_code=400, detail="Payment already voided")
     check_closing_date(db, payment.date)
+
+    # Aggregate repeat allocations and lock invoices in the same order as create.
+    # Invoice locks precede journal account locks to avoid lock-order inversion.
+    amounts = {}
+    for alloc in payment.allocations:
+        amounts[alloc.invoice_id] = (
+            amounts.get(alloc.invoice_id, Decimal("0")) + alloc.amount
+        )
+    for invoice_id, amount in sorted(amounts.items()):
+        invoice = (
+            db.query(Invoice)
+            .filter(Invoice.id == invoice_id)
+            .with_for_update()
+            .populate_existing()
+            .first()
+        )
+        if invoice:
+            invoice.amount_paid -= amount
+            invoice.balance_due += amount
+            invoice.status = (
+                InvoiceStatus.PARTIAL if invoice.amount_paid > 0 else InvoiceStatus.SENT
+            )
 
     # Reverse journal entry
     if payment.transaction_id:
@@ -274,26 +308,6 @@ def void_payment(payment_id: int, db: Session = Depends(get_db)):
                 source_type="payment_void",
                 source_id=payment.id,
             )
-
-    # Reverse invoice allocations. Lock each invoice row so a concurrent
-    # create_payment / second void can't race the read-modify-write of
-    # amount_paid and balance_due.
-    for alloc in payment.allocations:
-        invoice = (
-            db.query(Invoice)
-            .filter(Invoice.id == alloc.invoice_id)
-            .with_for_update()
-            .first()
-        )
-        if invoice:
-            invoice.amount_paid -= alloc.amount
-            invoice.balance_due += alloc.amount
-            if invoice.balance_due >= invoice.total:
-                invoice.status = InvoiceStatus.SENT
-            elif invoice.amount_paid > 0:
-                invoice.status = InvoiceStatus.PARTIAL
-            else:
-                invoice.status = InvoiceStatus.SENT
 
     payment.is_voided = True
     db.commit()

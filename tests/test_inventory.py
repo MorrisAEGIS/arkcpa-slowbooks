@@ -82,7 +82,9 @@ def _create_invoice_for_inventory(client, customer_id, item_id, qty, unit_rate):
         },
     )
     assert r.status_code == 201, r.text
-    return r.json()
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
+    return issued.json()
 
 
 def _seed_vendor(db_session):

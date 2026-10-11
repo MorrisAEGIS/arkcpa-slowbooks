@@ -113,13 +113,17 @@ def test_every_posting_control_account_is_protected(client, seed_accounts, numbe
 # ---------------------------------------------------------------------------
 
 
-def test_invoice_is_refused_when_ar_is_absent_not_silently_unposted(
+def test_invoice_issue_is_refused_when_ar_is_absent_not_silently_unposted(
     client, db_session, seed_accounts
 ):
     """The heart of #119. With A/R gone the invoice must FAIL — the old
     behaviour created it, returned 201, and skipped the journal entry."""
     cid = _customer(client)
-    assert _invoice(client, cid, 2000).status_code == 201
+    original = _invoice(client, cid, 2000)
+    assert original.status_code == 201
+    assert (
+        client.post(f"/api/invoices/{original.json()['id']}/issue").status_code == 200
+    )
     before_tb, _ = _tb(client)
     before_ar = _ar_total(client)
 
@@ -130,7 +134,9 @@ def test_invoice_is_refused_when_ar_is_absent_not_silently_unposted(
     seed_accounts["1100"].account_number = "1105"
     db_session.commit()
 
-    r = _invoice(client, cid, 5000, date="2026-01-06")
+    draft = _invoice(client, cid, 5000, date="2026-01-06")
+    assert draft.status_code == 201 and draft.json()["transaction_id"] is None
+    r = client.post(f"/api/invoices/{draft.json()['id']}/issue")
     assert r.status_code == 409, r.text
     detail = r.json()["detail"]
     assert "1100" in detail and "Accounts Receivable" in detail

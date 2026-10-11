@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.invoices import Invoice, InvoiceStatus
+from app.services.invoice_lifecycle import issued_invoice_filter
 from app.models.payments import Payment
 from app.models.contacts import Customer
 from app.services.pdf_service import (
@@ -108,7 +109,7 @@ def income_by_customer(
     invoices = (
         db.query(Invoice)
         .filter(Invoice.date >= start_date, Invoice.date <= end_date)
-        .filter(Invoice.status != InvoiceStatus.VOID)
+        .filter(issued_invoice_filter())
         .all()
     )
 
@@ -169,7 +170,7 @@ def customer_statement_pdf(
     invoices = (
         db.query(Invoice)
         .filter(Invoice.customer_id == customer_id)
-        .filter(Invoice.status != InvoiceStatus.VOID)
+        .filter(issued_invoice_filter())
         .filter(Invoice.date <= as_of_date)
         .order_by(Invoice.date)
         .all()
@@ -245,7 +246,7 @@ def batch_email_statements(db: Session = Depends(get_db)):
             all_invoices = (
                 db.query(Invoice)
                 .filter(Invoice.customer_id == cid)
-                .filter(Invoice.status != InvoiceStatus.VOID)
+                .filter(issued_invoice_filter())
                 .filter(Invoice.date <= as_of_date)
                 .order_by(Invoice.date)
                 .all()

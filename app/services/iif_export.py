@@ -24,7 +24,8 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.accounts import Account
 from app.models.contacts import Customer, Vendor
 from app.models.items import Item
-from app.models.invoices import Invoice, InvoiceLine, InvoiceStatus
+from app.models.invoices import Invoice, InvoiceLine
+from app.services.invoice_lifecycle import issued_invoice_filter
 from app.models.payments import Payment, PaymentAllocation
 from app.models.estimates import Estimate, EstimateLine
 from app.services.iif_common import account_to_iif_type, item_to_iif_type
@@ -345,7 +346,7 @@ def export_invoices(db: Session, date_from: date = None, date_to: date = None) -
             joinedload(Invoice.customer),
             joinedload(Invoice.lines).joinedload(InvoiceLine.item),
         )
-        .filter(Invoice.status != InvoiceStatus.VOID)
+        .filter(issued_invoice_filter())
         .filter(Invoice.is_sales_receipt.is_(False))
     )
 
@@ -790,9 +791,7 @@ def export_sales_receipts(
             joinedload(Invoice.customer),
             joinedload(Invoice.lines).joinedload(InvoiceLine.item),
         )
-        .filter(
-            Invoice.status != InvoiceStatus.VOID, Invoice.is_sales_receipt.is_(True)
-        )
+        .filter(issued_invoice_filter(), Invoice.is_sales_receipt.is_(True))
     )
     if date_from:
         q = q.filter(Invoice.date >= date_from)

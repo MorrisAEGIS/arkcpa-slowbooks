@@ -31,10 +31,11 @@ def _sum_debits_credits(db_session, txn_id):
     )
 
 
-def test_editing_invoice_total_below_amount_paid_clamps_balance_due_at_zero(
+def test_editing_paid_invoice_is_locked_and_preserves_booked_balance(
     client, db_session, seed_accounts, seed_customer
 ):
     inv = _create_invoice(client, seed_customer.id, amount="100.00")
+    assert client.post(f"/api/invoices/{inv['id']}/issue").status_code == 200
 
     client.post(
         "/api/payments",
@@ -60,18 +61,15 @@ def test_editing_invoice_total_below_amount_paid_clamps_balance_due_at_zero(
             "tax_rate": "0",
         },
     )
-    assert r.status_code == 200, r.text
+    assert r.status_code == 409, r.text
 
     from app.models.invoices import Invoice
 
     db_session.expire_all()
     invoice = db_session.query(Invoice).filter_by(id=inv["id"]).first()
-    assert invoice.total == Decimal("40.00")
+    assert invoice.total == Decimal("100.00")
     assert invoice.amount_paid == Decimal("60.00")
-    assert invoice.balance_due >= Decimal("0.00"), (
-        "balance_due went negative: an invoice with $60 paid shouldn't get negative "
-        "balance when its total is edited down to $40"
-    )
+    assert invoice.balance_due == Decimal("40.00")
 
 
 def test_editing_only_tax_rate_recomputes_totals(
@@ -93,7 +91,8 @@ def test_editing_only_tax_rate_recomputes_totals(
     assert invoice.total == Decimal(
         "110.00"
     ), f"total not recomputed after tax_rate change: got {invoice.total}"
-    assert invoice.balance_due == Decimal("110.00")
+    assert invoice.balance_due == Decimal("0.00")
+    assert invoice.transaction_id is None
 
 
 def test_editing_lines_keeps_journal_balanced(
@@ -112,6 +111,8 @@ def test_editing_lines_keeps_journal_balanced(
         },
     )
     assert r.status_code == 200, r.text
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     from app.models.invoices import Invoice
 
@@ -134,6 +135,8 @@ def test_editing_only_tax_rate_keeps_journal_balanced(
 
     r = client.put(f"/api/invoices/{inv['id']}", json={"tax_rate": "0.10"})
     assert r.status_code == 200, r.text
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     from app.models.invoices import Invoice
 
@@ -278,6 +281,8 @@ def test_subcent_rate_invoice_posts_balanced_je(
         },
     )
     assert r.status_code == 201, r.text  # was 500 before the fix
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
     txn_id = (
         db_session.query(
             __import__("app.models.invoices", fromlist=["Invoice"]).Invoice
@@ -289,7 +294,9 @@ def test_subcent_rate_invoice_posts_balanced_je(
     lines = db_session.query(TransactionLine).filter_by(transaction_id=txn_id).all()
     dr = sum((Decimal(str(l.debit)) for l in lines), Decimal("0"))
     cr = sum((Decimal(str(l.credit)) for l in lines), Decimal("0"))
-    assert dr == cr, f"journal unbalanced after sub-cent rate: dr={dr} cr={cr}"
+    assert (
+        dr == cr == Decimal("3.02")
+    ), f"journal unbalanced after sub-cent rate: dr={dr} cr={cr}"
 
 
 def test_subcent_rate_invoice_edit_stays_balanced(
@@ -325,8 +332,10 @@ def test_subcent_rate_invoice_edit_stays_balanced(
         },
     )
     assert r.status_code == 200, r.text
+    issued = client.post(f"/api/invoices/{inv['id']}/issue")
+    assert issued.status_code == 200, issued.text
     txn_id = db_session.query(Invoice).filter_by(id=inv["id"]).first().transaction_id
     lines = db_session.query(TransactionLine).filter_by(transaction_id=txn_id).all()
     dr = sum((Decimal(str(l.debit)) for l in lines), Decimal("0"))
     cr = sum((Decimal(str(l.credit)) for l in lines), Decimal("0"))
-    assert dr == cr, f"edit JE unbalanced: dr={dr} cr={cr}"
+    assert dr == cr == Decimal("14.04"), f"edit JE unbalanced: dr={dr} cr={cr}"

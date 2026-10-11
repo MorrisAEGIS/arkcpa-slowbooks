@@ -20,7 +20,9 @@ def _mk_invoice(client, customer_id, amount="100.00", tax_rate="0", date_="2026-
         },
     )
     assert r.status_code == 201, r.text
-    return r.json()
+    issued = client.post(f"/api/invoices/{r.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
+    return issued.json()
 
 
 def test_pl_income_shows_positive_amount(client, seed_accounts, seed_customer):

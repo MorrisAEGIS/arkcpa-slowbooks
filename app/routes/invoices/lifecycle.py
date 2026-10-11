@@ -12,13 +12,10 @@ from datetime import date as dt_date
 from app.database import get_db
 from app.models.accounts import Account
 from app.models.invoices import Invoice, InvoiceLine, InvoiceStatus
-from app.models.items import Item
 from app.schemas.invoices import InvoiceResponse
 from app.services.accounting import (
     create_journal_entry,
     get_ar_account_id,
-    get_default_income_account_id,
-    get_sales_tax_account_id,
     _q,
 )
 from app.services.numbering import next_invoice_number
@@ -31,11 +28,17 @@ from app.routes.invoices._router import router
 @router.post("/{invoice_id}/void", response_model=InvoiceResponse)
 def void_invoice(invoice_id: int, db: Session = Depends(get_db)):
     """Void — creates a reversing journal entry."""
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    invoice = (
+        db.query(Invoice)
+        .filter(Invoice.id == invoice_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
     if invoice.status == InvoiceStatus.VOID:
-        raise HTTPException(status_code=400, detail="Invoice already voided")
+        return InvoiceResponse.model_validate(invoice)
     # Voiding an invoice with payments applied would reverse the full A/R
     # while the payment's cash-receipt JE + allocations stay on the books —
     # double-counting cash and reversing A/R twice. Require the payment(s)
@@ -50,6 +53,35 @@ def void_invoice(invoice_id: int, db: Session = Depends(get_db)):
         )
     check_closing_date(db, invoice.date)
 
+    from app.models.items import InventoryMovement, Item
+    from app.models.transactions import Transaction
+    from app.services.accounting import reversing_lines
+
+    late_fees = (
+        db.query(Transaction)
+        .filter(
+            Transaction.source_type == "late_fee", Transaction.source_id == invoice.id
+        )
+        .order_by(Transaction.id)
+        .all()
+    )
+    for fee in late_fees:
+        check_closing_date(db, fee.date)
+
+    # Match issue's lock order: invoice, historical stock items, then accounts.
+    # Legacy edits may have consumed items no longer present on invoice.lines.
+    stock_ids = (
+        db.query(InventoryMovement.item_id)
+        .filter(
+            InventoryMovement.source_type.in_(["invoice", "invoice_edit"]),
+            InventoryMovement.source_id == invoice.id,
+        )
+        .scalar_subquery()
+    )
+    db.query(Item).filter(Item.id.in_(stock_ids)).order_by(
+        Item.id
+    ).with_for_update().populate_existing().all()
+
     # Create reversing journal entry if original had one
     if invoice.transaction_id:
         from app.models.transactions import TransactionLine
@@ -59,16 +91,9 @@ def void_invoice(invoice_id: int, db: Session = Depends(get_db)):
             .filter(TransactionLine.transaction_id == invoice.transaction_id)
             .all()
         )
-        reverse_lines = []
-        for ol in original_lines:
-            reverse_lines.append(
-                {
-                    "account_id": ol.account_id,
-                    "debit": ol.credit,  # swap debit/credit
-                    "credit": ol.debit,
-                    "description": f"VOID: {ol.description or ''}",
-                }
-            )
+        from app.services.accounting import reversing_lines
+
+        reverse_lines = reversing_lines(original_lines)
         if reverse_lines:
             create_journal_entry(
                 db,
@@ -82,27 +107,30 @@ def void_invoice(invoice_id: int, db: Session = Depends(get_db)):
                 reference=invoice.invoice_number,
             )
 
-    # ---- Phase 11: reverse inventory movements ----
-    # Pass the ORIGINAL (invoice, id) so reverse_sale looks up the sale's
-    # historical unit_cost — this keeps the reversal balanced even if
-    # avg_cost moved between the sale and the void.
-    from app.services.inventory_service import reverse_sale
-
-    for line in invoice.lines:
-        if not line.item_id:
-            continue
-        item = db.query(Item).filter(Item.id == line.item_id).first()
-        if item and item.track_inventory:
-            reverse_sale(
-                db,
-                item,
-                quantity=Decimal(str(line.quantity)),
-                source_type="invoice_void",
-                source_id=invoice.id,
-                original_source_type="invoice",
-                original_source_id=invoice.id,
-                txn_date=invoice.date,
+    # Late fees are separate posted journals; reverse their exact historical
+    # amounts and dimensions as part of the same atomic invoice correction.
+    for fee in late_fees:
+        lines = reversing_lines(fee.lines)
+        if not lines:
+            raise HTTPException(
+                status_code=409, detail="Late fee journal needs reconciliation"
             )
+        create_journal_entry(
+            db,
+            fee.date,
+            f"VOID late fee: Invoice #{invoice.invoice_number}",
+            lines,
+            source_type="late_fee_void",
+            source_id=invoice.id,
+            class_id=fee.class_id,
+            job_id=fee.job_id,
+            reference=invoice.invoice_number,
+        )
+
+    # Reverse recorded stock only. Voiding an unissued draft must not add stock.
+    from app.services.inventory_hooks import reverse_sale_for_invoice
+
+    reverse_sale_for_invoice(db, invoice, txn_date=invoice.date)
 
     invoice.status = InvoiceStatus.VOID
     invoice.balance_due = Decimal("0")
@@ -114,17 +142,16 @@ def void_invoice(invoice_id: int, db: Session = Depends(get_db)):
     return resp
 
 
+@router.post("/{invoice_id}/issue", response_model=InvoiceResponse)
 @router.post("/{invoice_id}/send", response_model=InvoiceResponse)
 def mark_invoice_sent(invoice_id: int, db: Session = Depends(get_db)):
-    """Mark the invoice as sent."""
-    invoice = db.query(Invoice).filter(Invoice.id == invoice_id).first()
-    if not invoice:
-        raise HTTPException(status_code=404, detail="Invoice not found")
-    if invoice.status != InvoiceStatus.DRAFT:
-        raise HTTPException(
-            status_code=400, detail="Only draft invoices can be marked as sent"
-        )
-    invoice.status = InvoiceStatus.SENT
+    """Issue the invoice and post once. Does not send email or guarantee delivery.
+
+    /send remains a compatibility alias for the historical explicit action.
+    """
+    from app.services.invoice_lifecycle import issue_invoice
+
+    invoice = issue_invoice(db, invoice_id)
     db.commit()
     db.refresh(invoice)
     resp = InvoiceResponse.model_validate(invoice)
@@ -158,6 +185,9 @@ def apply_late_fees(db: Session = Depends(get_db)):
         )
         .filter(Invoice.balance_due > 0)
         .filter(Invoice.due_date <= today - timedelta(days=grace_days))
+        .order_by(Invoice.id)
+        .with_for_update()
+        .populate_existing()
         .all()
     )
 
@@ -264,11 +294,18 @@ def write_off_invoice(
     from app.services.numbering import next_credit_memo_number
 
     check_closing_date(db, data.date)
-    inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
+    inv = (
+        db.query(Invoice)
+        .filter(Invoice.id == invoice_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
+    )
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
-    if inv.status == InvoiceStatus.VOID:
-        raise HTTPException(status_code=400, detail="Invoice is void")
+    from app.services.invoice_lifecycle import require_issued
+
+    require_issued(inv)
     balance = Decimal(str(inv.balance_due or 0))
     if balance <= 0:
         raise HTTPException(
@@ -400,7 +437,10 @@ def duplicate_invoice(invoice_id: int, db: Session = Depends(get_db)):
         tax_rate=original.tax_rate,
         tax_amount=original.tax_amount,
         total=original.total,
-        balance_due=original.total,
+        balance_due=Decimal("0"),
+        currency=original.currency,
+        exchange_rate=original.exchange_rate,
+        job_id=original.job_id,
         is_pledge=original.is_pledge,
         fair_value_amount=original.fair_value_amount,
         fair_value_description=original.fair_value_description,
@@ -419,75 +459,13 @@ def duplicate_invoice(invoice_id: int, db: Session = Depends(get_db)):
             rate=oline.rate,
             amount=oline.amount,
             class_name=oline.class_name,
+            job_id=oline.job_id,
+            class_id=oline.class_id,
+            cost_code_id=oline.cost_code_id,
+            is_taxable=oline.is_taxable,
             line_order=oline.line_order,
         )
         db.add(new_line)
-
-    # Journal Entry — mirror what create_invoice does (DR A/R, CR Income per line)
-    ar_id = get_ar_account_id(db)
-    default_income_id = get_default_income_account_id(db)
-    tax_account_id = get_sales_tax_account_id(db)
-
-    if ar_id and default_income_id:
-        journal_lines = []
-        # Debit A/R for total
-        journal_lines.append(
-            {
-                "account_id": ar_id,
-                "debit": Decimal(str(new_invoice.total)),
-                "credit": Decimal("0"),
-                "description": f"Invoice #{new_number}",
-            }
-        )
-        # Credit income for each line
-        for oline in original.lines:
-            line_amount = Decimal(str(oline.amount))
-            if line_amount == 0:
-                continue
-            income_id = default_income_id
-            if oline.item_id:
-                item = db.query(Item).filter(Item.id == oline.item_id).first()
-                if item and item.income_account_id:
-                    income_id = item.income_account_id
-            journal_lines.append(
-                {
-                    "account_id": income_id,
-                    "debit": Decimal("0"),
-                    "credit": line_amount,
-                    "description": oline.description or "",
-                }
-            )
-        # Credit sales tax if any
-        if new_invoice.tax_amount and new_invoice.tax_amount > 0 and tax_account_id:
-            journal_lines.append(
-                {
-                    "account_id": tax_account_id,
-                    "debit": Decimal("0"),
-                    "credit": Decimal(str(new_invoice.tax_amount)),
-                    "description": "Sales tax",
-                }
-            )
-
-        customer = original.customer
-        txn = create_journal_entry(
-            db,
-            today,
-            f"Invoice #{new_number} - {customer.name if customer else ''}",
-            journal_lines,
-            source_type="invoice",
-            source_id=new_invoice.id,
-            class_id=new_invoice.class_id,
-            reference=new_number,
-        )
-        new_invoice.transaction_id = txn.id
-
-    # Phase 11 (audit fix): a duplicated invoice is a FRESH sale, so it
-    # must hit the inventory ledger just like create_invoice does.
-    db.flush()
-    db.refresh(new_invoice)
-    from app.services.inventory_hooks import post_sale_for_invoice
-
-    post_sale_for_invoice(db, new_invoice, txn_date=today)
 
     db.commit()
     db.refresh(new_invoice)

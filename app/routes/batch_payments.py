@@ -83,16 +83,22 @@ def create_batch_payment(data: BatchPaymentCreate, db: Session = Depends(get_db)
             # two concurrent batches against one invoice must not both
             # pass the balance check (GHSA-rm5h-555g-vpjj). No-op on
             # SQLite; real lock on Postgres.
+            # Preserve prior allocations in this same transaction before refreshing.
+            db.flush()
             invoice = (
                 db.query(Invoice)
                 .filter(Invoice.id == alloc.invoice_id)
                 .with_for_update()
+                .populate_existing()
                 .first()
             )
             if not invoice:
                 raise HTTPException(
                     status_code=404, detail=f"Invoice {alloc.invoice_id} not found"
                 )
+            from app.services.invoice_lifecycle import require_issued
+
+            require_issued(invoice)
             if Decimal(str(alloc.amount)) > invoice.balance_due:
                 raise HTTPException(
                     status_code=400,

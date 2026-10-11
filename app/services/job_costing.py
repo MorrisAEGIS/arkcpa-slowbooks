@@ -314,8 +314,29 @@ def post_job_cost(db: Session, jc: JobCost) -> Transaction:
 
 
 def void_job_cost(db: Session, jc: JobCost) -> None:
+    # Match rejection's TimeEntry -> JobCost lock order. Refresh after waiting:
+    # another request may have already reversed the cost and cleared the link.
+    linked_entries = (
+        db.query(TimeEntry)
+        .filter(TimeEntry.job_cost_id == jc.id)
+        .order_by(TimeEntry.id)
+        .with_for_update()
+        .populate_existing()
+        .all()
+    )
+    jc = (
+        db.query(JobCost)
+        .filter(JobCost.id == jc.id)
+        .with_for_update()
+        .populate_existing()
+        .one()
+    )
     if jc.status == "void":
         raise ValueError("Job cost entry is already void")
+    if any(te.pay_run_id is not None for te in linked_entries):
+        raise ValueError(
+            "Job cost is linked to payroll-locked time; correct payroll first"
+        )
     txn = jc.transaction
     if txn is not None:
         reverse = [
@@ -340,7 +361,7 @@ def void_job_cost(db: Session, jc: JobCost) -> None:
             reference=jc.number,
         )
     jc.status = "void"
-    for te in db.query(TimeEntry).filter(TimeEntry.job_cost_id == jc.id).all():
+    for te in linked_entries:
         te.job_cost_id = None
 
 
@@ -384,12 +405,20 @@ def labor_cost_for_entry(
 
 
 def post_time_entry_to_job(db: Session, entry: TimeEntry) -> JobCost:
+    # Serialize cost posting with edits/rejections; refresh after obtaining the lock.
+    entry = (
+        db.query(TimeEntry)
+        .filter(TimeEntry.id == entry.id)
+        .with_for_update()
+        .populate_existing()
+        .one()
+    )
     if entry.job_cost_id:
         raise ValueError("Time entry is already posted to its job")
     if not entry.job_id:
         raise ValueError("Time entry has no job")
-    if entry.status not in (TimeEntryStatus.APPROVED, TimeEntryStatus.SUBMITTED):
-        raise ValueError("Only submitted or approved time entries post to a job")
+    if entry.status != TimeEntryStatus.APPROVED:
+        raise ValueError("Only approved time entries post to a job")
     emp = entry.employee or db.get(Employee, entry.employee_id)
     types = cost_type_map(db)
     labor = types.get("labor")

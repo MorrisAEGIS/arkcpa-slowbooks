@@ -25,10 +25,6 @@ from app.services.settings_service import get_all_settings as get_settings, set_
 from app.services.accounting import (
     _q,
     compute_line_totals,
-    create_journal_entry,
-    get_ar_account_id,
-    get_default_income_account_id,
-    get_sales_tax_account_id,
 )
 
 router = APIRouter(prefix="/api/estimates", tags=["estimates"])
@@ -257,8 +253,7 @@ def convert_to_invoice(estimate_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Estimate not found")
     if estimate.status == EstimateStatus.CONVERTED:
         raise HTTPException(status_code=400, detail="Estimate already converted")
-    # Posts a JE dated to estimate.date; enforce closing date here too so an
-    # operator can't sidestep a closed period by converting an old estimate.
+    # Preserve the closing-date guard; issue will independently check it again.
     check_closing_date(db, estimate.date)
 
     # Get next invoice number
@@ -290,7 +285,7 @@ def convert_to_invoice(estimate_id: int, db: Session = Depends(get_db)):
         tax_rate=estimate.tax_rate,
         tax_amount=estimate.tax_amount,
         total=estimate.total,
-        balance_due=estimate.total,
+        balance_due=Decimal("0"),
         class_id=estimate.class_id,
         job_id=estimate.job_id,
         notes=estimate.notes,
@@ -316,76 +311,6 @@ def convert_to_invoice(estimate_id: int, db: Session = Depends(get_db)):
 
     estimate.status = EstimateStatus.CONVERTED
     estimate.converted_invoice_id = invoice.id
-
-    # Journal Entry — DR A/R for total, CR income account per line item
-    ar_id = get_ar_account_id(db)
-    default_income_id = get_default_income_account_id(db)
-    tax_account_id = get_sales_tax_account_id(db)
-
-    if ar_id and default_income_id:
-        from app.models.items import Item
-
-        journal_lines = []
-        # Debit A/R for total
-        journal_lines.append(
-            {
-                "account_id": ar_id,
-                "debit": Decimal(str(invoice.total)),
-                "credit": Decimal("0"),
-                "description": f"Invoice #{invoice_number}",
-            }
-        )
-        # Credit income for each line item
-        for eline in estimate.lines:
-            line_amount = Decimal(str(eline.amount))
-            if line_amount == 0:
-                continue
-            income_id = default_income_id
-            if eline.item_id:
-                item = db.query(Item).filter(Item.id == eline.item_id).first()
-                if item and item.income_account_id:
-                    income_id = item.income_account_id
-            journal_lines.append(
-                {
-                    "account_id": income_id,
-                    "debit": Decimal("0"),
-                    "credit": line_amount,
-                    "description": eline.description or "",
-                }
-            )
-        # Credit sales tax if any
-        if invoice.tax_amount and invoice.tax_amount > 0 and tax_account_id:
-            journal_lines.append(
-                {
-                    "account_id": tax_account_id,
-                    "debit": Decimal("0"),
-                    "credit": Decimal(str(invoice.tax_amount)),
-                    "description": "Sales tax",
-                }
-            )
-
-        customer = estimate.customer
-        txn = create_journal_entry(
-            db,
-            estimate.date,
-            f"Invoice #{invoice_number} - {customer.name if customer else ''}",
-            journal_lines,
-            source_type="invoice",
-            source_id=invoice.id,
-            reference=invoice_number,
-            class_id=invoice.class_id,
-            job_id=invoice.job_id,
-        )
-        invoice.transaction_id = txn.id
-
-    # Phase 11 (audit fix): estimate→invoice conversion is a NEW sale from
-    # an accounting standpoint. Post inventory movements for each inventory
-    # line so the ledger stays consistent with the A/R journal entry.
-    db.flush()
-    db.refresh(invoice)
-    from app.services.inventory_hooks import post_sale_for_invoice
-
-    post_sale_for_invoice(db, invoice, txn_date=estimate.date)
 
     db.commit()
     db.refresh(invoice)

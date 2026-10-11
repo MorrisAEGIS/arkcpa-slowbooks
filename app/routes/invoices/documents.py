@@ -84,6 +84,9 @@ def email_invoice(
     inv = db.query(Invoice).filter(Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    from app.services.invoice_lifecycle import require_issued
+
+    require_issued(inv)
     company = get_settings(db)
     from app.services.email_service import invoice_email_label
 

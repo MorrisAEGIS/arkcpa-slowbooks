@@ -22,6 +22,7 @@ from app.models.accounts import Account, AccountType
 from app.models.bills import Bill, BillStatus
 from app.models.contacts import Customer
 from app.models.invoices import Invoice, InvoiceStatus
+from app.services.invoice_lifecycle import issued_invoice_filter
 from app.models.payments import Payment
 from app.models.purchase_orders import POStatus, PurchaseOrder
 from app.models.transactions import Transaction, TransactionLine
@@ -40,13 +41,15 @@ def _f(v) -> float:
 def receivables(db: Session) -> dict:
     total = (
         db.query(func.coalesce(func.sum(Invoice.balance_due), 0))
-        .filter(Invoice.status.in_(OPEN_INVOICE))
+        .filter(Invoice.status.in_(OPEN_INVOICE), issued_invoice_filter())
         .scalar()
     )
     overdue = (
         db.query(func.count(Invoice.id))
         .filter(
-            Invoice.status.in_(OPEN_INVOICE), Invoice.due_date < func.current_date()
+            Invoice.status.in_(OPEN_INVOICE),
+            issued_invoice_filter(),
+            Invoice.due_date < func.current_date(),
         )
         .scalar()
     )
@@ -57,7 +60,9 @@ def overdue_invoices(db: Session) -> dict:
     rows = (
         db.query(Invoice)
         .filter(
-            Invoice.status.in_(OPEN_INVOICE), Invoice.due_date < func.current_date()
+            Invoice.status.in_(OPEN_INVOICE),
+            issued_invoice_filter(),
+            Invoice.due_date < func.current_date(),
         )
         .order_by(Invoice.due_date)
         .limit(5)
@@ -66,7 +71,9 @@ def overdue_invoices(db: Session) -> dict:
     count = (
         db.query(func.count(Invoice.id))
         .filter(
-            Invoice.status.in_(OPEN_INVOICE), Invoice.due_date < func.current_date()
+            Invoice.status.in_(OPEN_INVOICE),
+            issued_invoice_filter(),
+            Invoice.due_date < func.current_date(),
         )
         .scalar()
     )
@@ -150,7 +157,11 @@ def ar_aging(db: Session) -> dict:
     }
     rows = (
         db.query(Invoice)
-        .filter(Invoice.status.in_(OPEN_INVOICE), Invoice.balance_due > 0)
+        .filter(
+            Invoice.status.in_(OPEN_INVOICE),
+            issued_invoice_filter(),
+            Invoice.balance_due > 0,
+        )
         .all()
     )
     for inv in rows:
@@ -285,7 +296,11 @@ def cash_position(db: Session) -> dict:
     cash = sum(r["balance"] for r in _bank_ledger_rows(db) if r["kind"] == "bank")
     ar_due = _f(
         db.query(func.coalesce(func.sum(Invoice.balance_due), 0))
-        .filter(Invoice.status.in_(OPEN_INVOICE), Invoice.due_date <= horizon)
+        .filter(
+            Invoice.status.in_(OPEN_INVOICE),
+            issued_invoice_filter(),
+            Invoice.due_date <= horizon,
+        )
         .scalar()
     )
     ap_due = _f(

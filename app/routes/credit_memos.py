@@ -229,11 +229,15 @@ def apply_credit(
         db.query(Invoice)
         .filter(Invoice.id == data.invoice_id)
         .with_for_update()
+        .populate_existing()
         .first()
     )
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
+    from app.services.invoice_lifecycle import require_issued
+
+    require_issued(invoice)
     if Decimal(str(data.amount)) > cm.balance_remaining:
         raise HTTPException(status_code=400, detail="Amount exceeds credit balance")
     if Decimal(str(data.amount)) > invoice.balance_due:
@@ -283,11 +287,14 @@ def void_credit_memo(cm_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Credit memo is already void")
     check_closing_date(db, cm.date)
 
-    for app_row in list(cm.applications):
+    for app_row in sorted(cm.applications, key=lambda row: row.invoice_id):
+        # A prior application may target this invoice again in the same void.
+        db.flush()
         invoice = (
             db.query(Invoice)
             .filter(Invoice.id == app_row.invoice_id)
             .with_for_update()
+            .populate_existing()
             .first()
         )
         if invoice:

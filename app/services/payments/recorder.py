@@ -47,7 +47,11 @@ def record_provider_payment(
         raise ValueError(f"external_id too long for Payment.reference: {external_id}")
 
     invoice = (
-        db.query(Invoice).filter(Invoice.id == invoice_id).with_for_update().first()
+        db.query(Invoice)
+        .filter(Invoice.id == invoice_id)
+        .with_for_update()
+        .populate_existing()
+        .first()
     )
     if not invoice:
         return "invoice_not_found"
@@ -58,6 +62,9 @@ def record_provider_payment(
 
     if invoice.status in (InvoiceStatus.PAID, InvoiceStatus.VOID):
         return "invoice_already_settled"
+
+    if invoice.status == InvoiceStatus.DRAFT and invoice.transaction_id is None:
+        return "invoice_not_issued"
 
     # Cap at balance due
     if amount > invoice.balance_due:

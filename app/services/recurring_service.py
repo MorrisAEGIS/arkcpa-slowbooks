@@ -12,15 +12,10 @@ from sqlalchemy.exc import IntegrityError
 
 from app.models.recurring import RecurringInvoice
 from app.models.invoices import Invoice, InvoiceLine
-from app.models.items import Item
 from app.services.numbering import next_invoice_number
 from app.services.accounting import (
     _q,
     compute_line_totals,
-    create_journal_entry,
-    get_ar_account_id,
-    get_default_income_account_id,
-    get_sales_tax_account_id,
 )
 
 
@@ -52,13 +47,12 @@ def generate_due_invoices(db: Session, as_of: date = None) -> list[int]:
             RecurringInvoice.is_active,
             RecurringInvoice.next_due <= as_of,
         )
+        .with_for_update()
+        .populate_existing()
         .all()
     )
 
     created_ids = []
-    ar_id = get_ar_account_id(db)
-    default_income_id = get_default_income_account_id(db)
-    tax_account_id = get_sales_tax_account_id(db)
 
     for rec in recurrings:
         # Check end date
@@ -101,7 +95,7 @@ def generate_due_invoices(db: Session, as_of: date = None) -> list[int]:
                 tax_rate=tax_rate,
                 tax_amount=tax_amount,
                 total=total,
-                balance_due=total,
+                balance_due=Decimal("0"),
                 notes=rec.notes,
                 class_id=rec.class_id,
                 job_id=rec.job_id,
@@ -135,65 +129,6 @@ def generate_due_invoices(db: Session, as_of: date = None) -> list[int]:
                     line_order=rline.line_order,
                 )
             )
-
-        # Journal entry
-        if ar_id and default_income_id:
-            journal_lines = [
-                {
-                    "account_id": ar_id,
-                    "debit": total,
-                    "credit": Decimal("0"),
-                    "description": f"Recurring Invoice #{invoice_number}",
-                }
-            ]
-            for rline in rec.lines:
-                # Must round per-line BEFORE summing to match compute_line_totals;
-                # otherwise stored credits drift from the rounded A/R debit.
-                line_amt = _q(Decimal(str(rline.quantity)) * Decimal(str(rline.rate)))
-                if line_amt == 0:
-                    continue
-                income_id = default_income_id
-                if rline.item_id:
-                    item = db.query(Item).filter(Item.id == rline.item_id).first()
-                    if item and item.income_account_id:
-                        income_id = item.income_account_id
-                journal_lines.append(
-                    {
-                        "account_id": income_id,
-                        "debit": Decimal("0"),
-                        "credit": line_amt,
-                        "description": rline.description or "",
-                    }
-                )
-            if tax_amount > 0 and tax_account_id:
-                journal_lines.append(
-                    {
-                        "account_id": tax_account_id,
-                        "debit": Decimal("0"),
-                        "credit": tax_amount,
-                        "description": "Sales tax",
-                    }
-                )
-            txn = create_journal_entry(
-                db,
-                rec.next_due,
-                f"Recurring Invoice #{invoice_number}",
-                journal_lines,
-                source_type="invoice",
-                source_id=invoice.id,
-                reference=invoice_number,
-                class_id=invoice.class_id,
-                job_id=invoice.job_id,
-            )
-            invoice.transaction_id = txn.id
-
-        # Phase 11 (audit fix): recurring-generated invoices are real sales
-        # and must hit the inventory ledger.
-        db.flush()
-        db.refresh(invoice)
-        from app.services.inventory_hooks import post_sale_for_invoice
-
-        post_sale_for_invoice(db, invoice, txn_date=rec.next_due)
 
         # Advance next due date
         rec.next_due = _advance_next_due(rec.next_due, rec.frequency)

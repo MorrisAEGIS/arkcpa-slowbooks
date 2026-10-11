@@ -10,7 +10,8 @@ from sqlalchemy import func as sqlfunc
 from app.database import get_db
 from app.services.accounting import taxable_subtotal
 from app.models.accounts import Account
-from app.models.invoices import Invoice, InvoiceStatus
+from app.models.invoices import Invoice
+from app.services.invoice_lifecycle import issued_invoice_filter
 from app.models.contacts import Vendor
 from app.routes.reports._router import router
 
@@ -42,7 +43,7 @@ def sales_tax_report(
         db.query(Invoice)
         .options(joinedload(Invoice.customer))
         .filter(Invoice.date >= start_date, Invoice.date <= end_date)
-        .filter(Invoice.status != InvoiceStatus.VOID)
+        .filter(issued_invoice_filter())
         .order_by(Invoice.date)
         .all()
     )

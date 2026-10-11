@@ -79,6 +79,10 @@ def public_payment_page(
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
+    from app.services.invoice_lifecycle import require_issued
+
+    require_issued(invoice)
+
     settings = get_settings(db)
 
     verified_success = False

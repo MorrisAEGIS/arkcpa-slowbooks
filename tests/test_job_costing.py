@@ -271,7 +271,7 @@ def test_time_entry_posts_labor_at_loaded_rate_with_burden(
     early = client.post(f"/api/time-entries/{te_id}/post-to-job")
     assert early.status_code == 400  # draft entries don't post
     client.post(f"/api/time-entries/{te_id}/submit")
-    client.post(f"/api/time-entries/{te_id}/approve?approved_by=admin")
+    client.post(f"/api/time-entries/{te_id}/approve", json={"approved_by": "admin"})
 
     posted = client.post(f"/api/time-entries/{te_id}/post-to-job")
     assert posted.status_code == 200, posted.text
@@ -462,7 +462,7 @@ def test_budget_from_estimate_and_cost_tree_columns(
         },
     ).json()
     client.put(f"/api/purchase-orders/{po['id']}", json={"status": "sent"})
-    client.post(
+    created = client.post(
         "/api/invoices",
         json={
             "customer_id": seed_customer.id,
@@ -478,6 +478,9 @@ def test_budget_from_estimate_and_cost_tree_columns(
             ],
         },
     )
+    assert created.status_code == 201, created.text
+    issued = client.post(f"/api/invoices/{created.json()['id']}/issue")
+    assert issued.status_code == 200, issued.text
 
     tree = client.get(f"/api/jobs/{job['id']}/cost-tree").json()
     material = next(t for t in tree["types"] if t["cost_type"] == "material")
@@ -573,6 +576,10 @@ def _posted_entry(client, job_id, emp_id, day="2026-07-11", hours=8):
         },
     ).json()
     client.post(f"/api/time-entries/{te['id']}/submit")
+    approved = client.post(
+        f"/api/time-entries/{te['id']}/approve", json={"approved_by": "admin"}
+    )
+    assert approved.status_code == 200, approved.text
     posted = client.post(f"/api/time-entries/{te['id']}/post-to-job")
     assert posted.status_code == 200, posted.text
     return te["id"], posted.json()["job_cost_id"]

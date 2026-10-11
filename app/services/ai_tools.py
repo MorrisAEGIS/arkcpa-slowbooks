@@ -362,7 +362,9 @@ def get_tax_summary(
 ) -> Dict[str, Any]:
     """Get tax-relevant summary: sales tax collected, expense totals by category."""
     # Sum of tax amounts on invoices in the period (sales tax collected)
-    q = db.query(Invoice)
+    from app.services.invoice_lifecycle import issued_invoice_filter
+
+    q = db.query(Invoice).filter(issued_invoice_filter())
     if start_date:
         try:
             sd = datetime.fromisoformat(start_date).date()
@@ -402,7 +404,9 @@ def get_sales_by_customer(
     end_date: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Get total sales (paid invoices) grouped by customer."""
-    q = db.query(Invoice)
+    from app.services.invoice_lifecycle import issued_invoice_filter
+
+    q = db.query(Invoice).filter(issued_invoice_filter())
 
     if start_date:
         try:
