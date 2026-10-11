@@ -194,6 +194,7 @@ def create_journal_entry(
     from app.services.classes_service import default_function_of
 
     fn_cache: dict = {}
+    balance_deltas: dict[int, tuple[Account, Decimal]] = {}
     for line_data in lines:
         debit = Decimal(str(line_data.get("debit", 0)))
         credit = Decimal(str(line_data.get("credit", 0)))
@@ -222,15 +223,27 @@ def create_journal_entry(
         )
         db.add(txn_line)
 
-        # Update account balance
         account = (
             db.query(Account).filter(Account.id == line_data["account_id"]).first()
         )
         if account:
-            if account.account_type.value in ("asset", "expense", "cogs"):
-                account.balance += debit - credit
-            else:
-                account.balance += credit - debit
+            delta = (
+                debit - credit
+                if account.account_type.value in ("asset", "expense", "cogs")
+                else credit - debit
+            )
+            previous = balance_deltas.get(account.id, (account, Decimal("0")))[1]
+            balance_deltas[account.id] = (account, previous + delta)
+
+    # Another session may have posted since these account objects were loaded.
+    # Increment the stored balance atomically instead of writing a stale Python
+    # value. A fixed account order also avoids inverted locks within one entry.
+    db.flush()
+    for account_id, (account, delta) in sorted(balance_deltas.items()):
+        db.query(Account).filter(Account.id == account_id).update(
+            {Account.balance: Account.balance + delta}, synchronize_session=False
+        )
+        db.expire(account, ["balance"])
 
     return txn
 
