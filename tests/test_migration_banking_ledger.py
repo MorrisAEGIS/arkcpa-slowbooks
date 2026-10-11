@@ -122,7 +122,7 @@ def test_upgrade_flags_bank_accounts_links_feeds_and_remaps_statement_lines(tmp_
     }
     assert (
         con.execute("SELECT version_num FROM alembic_version").fetchone()[0]
-        == "b0c1d2e3f4a5"
+        == "f9a0b1c2d3e4"
     )
     entity_columns = {row[1] for row in con.execute("PRAGMA table_info(ark_entities)")}
     assert {"posting_mode", "facts_status", "profile"} <= entity_columns

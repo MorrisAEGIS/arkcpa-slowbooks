@@ -37,7 +37,7 @@ const InvoicesPage = {
                     <td class="actions">
                         <button class="btn btn-sm btn-secondary" onclick="InvoicesPage.view(${inv.id})">View</button>
                         ${inv.status === 'draft' && !inv.transaction_id ? `<button class="btn btn-sm btn-secondary" onclick="InvoicesPage.showForm(${inv.id})">Edit Draft</button>` : ''}
-                        ${inv.status === 'draft' ? `<button class="btn btn-sm btn-primary" onclick="InvoicesPage.markSent(${inv.id})">Issue Invoice</button>` : ''}
+                        ${inv.status === 'draft' ? `<button class="btn btn-sm btn-primary" onclick="InvoicesPage.markSent(${inv.id})">Issue ${T('Invoice')}</button>` : ''}
                         ${Terms.isNonprofit() && inv.status !== 'void' && parseFloat(inv.balance_due) > 0 ? `<button class="btn btn-sm btn-secondary" onclick="InvoicesPage.showWriteOff(${inv.id}, ${parseFloat(inv.balance_due)})">Write Off</button>` : ''}
                     </td>
                 </tr>`,
@@ -101,7 +101,7 @@ const InvoicesPage = {
                 <div class="total-row"><span class="label">Paid</span><span class="value">${formatCurrency(inv.amount_paid)}</span></div>
                 <div class="total-row grand-total"><span class="label">Balance Due</span><span class="value">${formatCurrency(inv.balance_due)}</span></div>
             </div>
-            ${inv.status === 'draft' && !inv.transaction_id ? '<p>Draft: no receivable or stock has been posted. Review the total, then choose Issue Invoice.</p>' : '<p>Issued invoices are locked. Use void and a replacement draft for corrections.</p>'}
+            ${inv.status === 'draft' && !inv.transaction_id ? `<p>Draft: no receivable or stock has been posted. Review the total, then choose Issue ${T('Invoice')}.</p>` : Terms.text('<p>Issued invoices are locked. Use void and a replacement draft for corrections.</p>')}
             ${inv.notes ? `<p style="margin-top:12px;color:var(--gray-500);">${escapeHtml(inv.notes)}</p>` : ''}
             <div style="margin-top:16px; border-top:1px solid var(--gray-200); padding-top:12px;">
                 <h3 style="font-size:13px; margin-bottom:8px;">Attachments</h3>
@@ -116,7 +116,7 @@ const InvoicesPage = {
                 ${inv.status !== 'void' && (inv.status !== 'draft' || inv.transaction_id) ? `<button class="btn btn-secondary" onclick="InvoicesPage.emailInvoice(${inv.id})">Email ${T('Invoice')}</button>` : ''}
                 ${inv.status !== 'void' && (inv.status !== 'draft' || inv.transaction_id) ? `<button class="btn btn-secondary" onclick="InvoicesPage.copyPaymentLink(${inv.id})">Copy Payment Link</button>` : ''}
                 ${inv.checkout_provider && inv.status !== 'paid' && inv.status !== 'void' ? `<button class="btn btn-secondary" onclick="InvoicesPage.checkPaymentStatus(${inv.id}, '${inv.checkout_provider}')">Check Payment Status</button>` : ''}
-                ${inv.status === 'draft' ? `<button class="btn btn-primary" onclick="InvoicesPage.markSent(${inv.id})">Issue Invoice</button>` : ''}
+                ${inv.status === 'draft' ? `<button class="btn btn-primary" onclick="InvoicesPage.markSent(${inv.id})">Issue ${T('Invoice')}</button>` : ''}
                 ${inv.status !== 'void' ? `<button class="btn btn-danger" onclick="InvoicesPage.void(${inv.id})">Void ${T('Invoice')}</button>` : ''}
                 <button class="btn btn-secondary" onclick="closeModal()">Close</button>
             </div>`);
