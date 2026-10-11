@@ -24,6 +24,11 @@
 
     const OVERLAY_ID = "auth-overlay";
     const MIN_PASSWORD_LEN = 8;
+    // Presentation only. Company access always comes from server permissions.
+    const companyBrand = {
+        "cpa.enerteqpower.com": "Enerteq Power",
+        "cpa.magaenergy.ai": "MAGA Energy",
+    }[window.location.hostname.toLowerCase()] || "Ark CPA";
 
     // ----- network ---------------------------------------------------------
 
@@ -32,10 +37,10 @@
             const res = await fetch(AUTH_STATUS_URL, {
                 credentials: "same-origin",
             });
-            if (!res.ok) return { authenticated: false, setup_needed: false };
+            if (!res.ok) return { authenticated: false, setup_needed: false, local_password_login: false, unavailable: true };
             return await res.json();
         } catch (e) {
-            return { authenticated: false, setup_needed: false };
+            return { authenticated: false, setup_needed: false, local_password_login: false, unavailable: true };
         }
     }
 
@@ -118,13 +123,15 @@
             '<section class="ark-auth-shell" aria-labelledby="auth-title">' +
             '<header class="ark-auth-identity">' +
             livingMarkHTML() +
-            '<p class="ark-auth-eyebrow">MAGA Energy / Accounting</p>' +
-            '<h1 class="ark-auth-title" id="auth-title">Ark CPA</h1>' +
+            '<p class="ark-auth-eyebrow">Accounting</p>' +
+            '<h1 class="ark-auth-title" id="auth-title">' + escapeText(companyBrand) + '</h1>' +
             '<p class="ark-auth-subtitle">' +
             (mode === "setup" ? "Prepare your private accounting workspace" : "Sign in to continue") +
             "</p></header>" +
             innerHTML +
-            '<p class="ark-auth-provenance">Private multi-entity accounting workspace · Built on SlowBooks Pro 2026</p>' +
+            '<p class="ark-auth-provenance">Ark CPA · Powered by ArkTeq</p>' +
+            '<details class="ark-auth-acknowledgements"><summary>Software acknowledgements</summary>' +
+            '<p>Built on SlowBooks Pro 2026.<br>Slowbooks Pro 2026 — originally created by Trent Von Holten.</p></details>' +
             "</section></main>";
         return root;
     }
@@ -179,12 +186,13 @@
     // never see it.
     let multiUser = false;
     let authentikEnabled = false;
-    let localPasswordLogin = true;
+    let localPasswordLogin = false;
+    let statusUnavailable = false;
 
     function loginViewHTML() {
         const authentikButton = authentikEnabled
             ? '<a class="ark-auth-button" id="authentik-login" href="' + AUTHENTIK_LOGIN_URL + '">' +
-              'Continue with Authentik</a>'
+              'Sign in</a>'
             : "";
         const divider = authentikEnabled && localPasswordLogin
             ? '<div class="ark-auth-divider">Recovery</div>'
@@ -216,18 +224,21 @@
             : "";
         const authError = new URLSearchParams(window.location.search).get("auth_error");
         const errorMessages = {
-            unavailable: "Authentik is temporarily unavailable. Try again shortly.",
-            denied: "Authentik sign-in was cancelled.",
+            unavailable: "Sign-in is temporarily unavailable. Try again shortly.",
+            denied: "Sign-in was cancelled. You can try again.",
             invalid_state: "That sign-in expired. Start again.",
-            forbidden: "This Authentik account is not approved for Ark CPA.",
+            forbidden: "Your account does not have access to this accounting workspace. Contact your company administrator to request access, or sign in with an approved account.",
             failed: "Ark CPA could not complete sign-in. Try again.",
         };
         return (
             '<div class="ark-auth-panel"><form id="auth-form" aria-label="Ark CPA sign in">' +
             '<p class="ark-auth-intro">' +
-            (authentikEnabled ? "Use your ARK identity to continue." :
-                (multiUser ? "Sign in to continue." : "Enter your password to continue.")) +
+            (authentikEnabled ? "Use your approved company account." :
+                (statusUnavailable ? "We could not check sign-in availability. Please try again." :
+                    (multiUser ? "Sign in to continue." : "Enter your password to continue."))) +
             "</p>" + authentikButton + divider + localAccess +
+            (statusUnavailable ? '<button class="ark-auth-button" type="button" id="auth-retry">Try again</button>' : "") +
+            '<p class="ark-auth-help">Need access? Contact your company administrator.</p>' +
             '<p class="ark-auth-error" id="auth-error" role="alert" aria-live="assertive">' +
             escapeText(errorMessages[authError] || "") +
             "</p></form></div>"
@@ -242,6 +253,11 @@
         const btn = overlay.querySelector("#auth-submit");
         const switchBtn = overlay.querySelector("#auth-switch-setup");
 
+        const retryButton = overlay.querySelector("#auth-retry");
+        if (retryButton) {
+            retryButton.addEventListener("click", function () { window.location.reload(); });
+            retryButton.focus();
+        }
         const authentikLink = overlay.querySelector("#authentik-login");
         if (authentikLink) {
             authentikLink.href = AUTHENTIK_LOGIN_URL + "?next=%2F";
@@ -431,6 +447,7 @@
 
     function renderView(mode, onSuccess) {
         lockApplication();
+        document.title = companyBrand + " — Accounting";
         useLoginLocation();
         removeOverlay();
         const html = mode === "setup" ? setupViewHTML() : loginViewHTML();
@@ -449,15 +466,18 @@
     // hyperlink on the login form. Race-safe: a flurry of 401s from parallel
     // API calls can only ever paint one overlay.
     let authPromptInFlight = false;
-    async function promptAuth(onSuccess) {
+    async function promptAuth(onSuccess, useInitialStatus = false) {
         if (authPromptInFlight) return;
         if (document.getElementById(OVERLAY_ID)) return;
         authPromptInFlight = true;
+        lockApplication();
         try {
-            const status = await initialStatus;
+            // A later 401 must recheck the principal, not reuse startup's session.
+            const status = await (useInitialStatus ? initialStatus : checkStatus());
             multiUser = status.multi_user === true;
             authentikEnabled = status.authentik_enabled === true;
-            localPasswordLogin = status.local_password_login !== false;
+            localPasswordLogin = status.local_password_login === true;
+            statusUnavailable = status.unavailable === true;
             existingCompany = {
                 name: status.company_name || "",
                 hasData: status.has_data === true,
@@ -486,6 +506,6 @@
     };
 
     document.addEventListener("DOMContentLoaded", function () {
-        promptAuth();
+        promptAuth(undefined, true);
     });
 })();

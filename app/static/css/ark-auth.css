@@ -295,8 +295,8 @@
 
 .ark-auth-provenance {
     margin: 16px 0 0;
-    color: var(--ark-ink-faint);
-    font-size: 0.6875rem;
+    color: var(--ark-ink-muted);
+    font-size: 0.75rem;
     letter-spacing: 0.03em;
     text-align: center;
 }
@@ -354,4 +354,19 @@
     .ark-auth-button {
         transition: none;
     }
+}
+
+.ark-auth-help,
+.ark-auth-acknowledgements {
+    color: var(--ark-ink-muted);
+    font-size: 0.75rem;
+    line-height: 1.5;
+}
+
+.ark-auth-help { margin: 16px 0 0; }
+.ark-auth-acknowledgements { margin-top: 8px; text-align: center; }
+.ark-auth-acknowledgements summary { cursor: pointer; padding: 8px; }
+.ark-auth-acknowledgements summary:focus-visible {
+    outline: 2px solid var(--ark-focus);
+    outline-offset: 2px;
 }

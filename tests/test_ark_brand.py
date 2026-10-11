@@ -58,8 +58,9 @@ def test_ark_assets_and_manifest_are_self_hosted(unauthed_client):
 
 def test_auth_markup_uses_ark_classes_without_inline_presentation():
     source = read("app/static/js/auth.js")
-    assert "MAGA Energy / Accounting" in source
-    assert "Continue with Authentik" in source
+    assert '"cpa.enerteqpower.com": "Enerteq Power"' in source
+    assert "Sign in</a>" in source
+    assert "Powered by ArkTeq" in source
     assert "Local recovery access" in source
     assert "Built on SlowBooks Pro 2026" in source
     assert 'window.location.pathname !== "/login"' in source
