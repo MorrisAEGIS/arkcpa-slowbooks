@@ -15,6 +15,7 @@
     .invoice-title { text-align: right; }
     .invoice-title h1 { font-size: 22pt; font-weight: 700; color: #003366; margin: 0; letter-spacing: 0.05em; }
     .invoice-number { font-size: 12pt; color: #666; margin-top: 4px; }
+    .draft-notice { margin: 12px 0 18px; padding: 10px 12px; border: 2px solid #795100; color: #513600; font-weight: 700; }
     .meta-table { width: 100%; margin-bottom: 16px; }
     .meta-table td { padding: 3px 8px; font-size: 9pt; vertical-align: top; }
     .meta-label { font-weight: 700; color: #4a4a6a; width: 80px; }
@@ -56,6 +57,10 @@
             <div class="invoice-number">#{{ inv.invoice_number }}</div>
         </div>
     </div>
+
+    {% if inv.status == 'draft' and inv.transaction_id is none %}
+    <div class="draft-notice">DRAFT — NOT ISSUED<br>This document is for review. No payment is due.</div>
+    {% endif %}
 
     {# A sales receipt is paid at the time of sale — no due date, no terms. #}
     <table class="meta-table"><tr>
