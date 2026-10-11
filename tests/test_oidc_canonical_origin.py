@@ -6,7 +6,6 @@ import pytest
 
 from app.routes import auth
 
-
 CANONICAL = "https://cpa.enerteqpower.com"
 
 
