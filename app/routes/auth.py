@@ -57,14 +57,14 @@ def _is_secure_request(request: Request) -> bool:
     return forwarded.strip().lower() == "https" or request.url.scheme == "https"
 
 
-def _is_loopback_request(request: Request) -> bool:
-    forwarded = (request.headers.get("x-forwarded-host") or "").split(",", 1)[0]
-    if forwarded.strip():
-        host = urlsplit("//" + forwarded.strip()).hostname or ""
-    else:
-        host = request.url.hostname or ""
-    host = host.lower()
-    return host in {"127.0.0.1", "localhost", "::1", "testserver"}
+def _password_auth_enabled() -> bool:
+    # Invalid OIDC configuration must fail closed, never enable the fallback.
+    return os.environ.get("AUTHENTIK_OIDC_ENABLED", "").strip().lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
 
 def _safe_next(value: str | None) -> str:
@@ -204,9 +204,9 @@ def auth_status(request: Request, db: Session = Depends(get_control_db)):
         # Login UI shows a username field only when this is true.
         "multi_user": is_multi_user(db),
         "authentik_enabled": oidc_enabled,
-        # Password auth remains a loopback-only break-glass path whenever
-        # the public deployment has Authentik enabled.
-        "local_password_login": not oidc_enabled or _is_loopback_request(request),
+        # A reverse proxy may connect over loopback; HTTP headers or peer
+        # loopback therefore cannot establish break-glass authority.
+        "local_password_login": _password_auth_enabled(),
     }
     if setup_needed:
         # First-run setup can be reached on a file that already holds a
@@ -223,7 +223,7 @@ def auth_status(request: Request, db: Session = Depends(get_control_db)):
         out["user"] = {
             "username": request.session.get("username"),
             "display_name": request.session.get("display_name") or "",
-            "role": request.session.get("role") or "admin",
+            "role": request.session.get("role"),
             "email": request.session.get("user_email") or "",
         }
         out["workspace"] = {
@@ -366,10 +366,10 @@ def setup(
     """First-run setup: store company/operator info and the operator password
     in one transaction, then issue a session. Returns 409 if a password is
     already set."""
-    if is_oidc_enabled() and not _is_loopback_request(request):
+    if not _password_auth_enabled():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Initial setup is only available from loopback",
+            detail="HTTP password setup is disabled when Authentik is enabled",
         )
     if password_is_set(db):
         raise HTTPException(
@@ -430,6 +430,7 @@ def _stash_user(request: Request, user) -> None:
     request.session["username"] = user.username
     request.session["display_name"] = user.display_name
     request.session["role"] = user.role
+    request.session["session_version"] = user.session_version
     request.session["user_email"] = user.email or ""
 
 
@@ -447,7 +448,7 @@ def login(
     failure — is recorded in `login_attempts` so a slow patient attacker
     pacing requests under the rate limit still shows up in the audit log.
     """
-    if is_oidc_enabled() and not _is_loopback_request(request):
+    if not _password_auth_enabled():
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Use Authentik to sign in",
@@ -482,7 +483,14 @@ def login(
 
 
 @router.post("/logout")
-def logout(request: Request):
-    """Clear the session cookie."""
+def logout(request: Request, db: Session = Depends(get_control_db)):
+    """Revoke this user's issued cookies, then clear this browser's cookie."""
+    from app.services.auth import resolve_session_user
+    from app.models.users import User
+
+    user = resolve_session_user(db, request.session)
+    if user is not None:
+        user.session_version = User.session_version + 1
+        db.commit()
     request.session.clear()
     return {"status": "ok"}

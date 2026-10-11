@@ -69,9 +69,8 @@ def test_bookkeeper_daily_writes_ok_admin_writes_blocked(client, db_session):
     assert client.get("/api/users").status_code == 403
 
 
-def test_admin_unrestricted_and_legacy_session_is_admin(client):
-    # The fixture session predates any explicit role handling in older
-    # cookies; ours carries role=admin from setup — both must pass.
+def test_current_admin_session_is_unrestricted(client):
+    # Setup issues a complete versioned session backed by the current user.
     assert client.put("/api/settings", json={"invoice_prefix": "A-"}).status_code == 200
     assert client.get("/api/users").status_code == 200
 

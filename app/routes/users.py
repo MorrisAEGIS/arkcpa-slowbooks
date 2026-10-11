@@ -49,7 +49,7 @@ def _email_available(
 
 
 def _require_admin(request: Request) -> None:
-    if (request.session.get("role") or "admin") != ROLE_ADMIN:
+    if request.session.get("role") != ROLE_ADMIN:
         raise HTTPException(status_code=403, detail="Admin role required")
 
 
@@ -177,5 +177,10 @@ def update_user(
                 detail=f"Password must be at least {MIN_PASSWORD_LEN} characters",
             )
         user.password_hash = hash_password(payload.password)
+    if any(
+        value is not None
+        for value in (payload.role, payload.is_active, payload.password, payload.email)
+    ):
+        user.session_version = User.session_version + 1
     db.commit()
     return _user_out(user)

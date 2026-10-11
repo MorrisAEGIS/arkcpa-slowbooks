@@ -8,7 +8,7 @@ import re
 from threading import Lock
 
 from fastapi import HTTPException
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import declarative_base, sessionmaker
 from starlette.requests import HTTPConnection
@@ -63,6 +63,14 @@ Base = declarative_base()
 _ENTITY_DATABASE_RE = re.compile(r"^[a-z][a-z0-9_]{0,62}$")
 _entity_sessions: dict[str, sessionmaker] = {}
 _entity_sessions_lock = Lock()
+_READ_METHODS = {"GET", "HEAD", "OPTIONS"}
+# These POSTs change control-plane review metadata, never the entity ledger.
+_LEDGER_REVIEW_POST = re.compile(
+    r"^/api/ark-cpa/candidates/[0-9]+/(evaluate|controller-run)$"
+)
+_CANDIDATE_LEDGER_PATH = re.compile(
+    r"^/api/ark-cpa/candidates/([0-9]+)/(evaluate|controller-run|post)$"
+)
 
 
 def entity_mode_enabled() -> bool:
@@ -121,14 +129,21 @@ def _request_username(request: HTTPConnection | None) -> str | None:
 
 def _entity_database_for_request(request: HTTPConnection | None) -> str | None:
     """Resolve an authorized entity; never trust the cookie/header alone."""
-    if not entity_mode_enabled() or request is None or _is_sqlite:
+    if not entity_mode_enabled() or request is None:
         return None
     username = _request_username(request)
     if not username:
-        return None
+        raise HTTPException(
+            status_code=401, detail="An authorized entity principal is required"
+        )
 
     from app.models.api_tokens import ApiToken
-    from app.models.arkcpa import ArkAgentGrant, ArkEntity, ArkEntityAccess
+    from app.models.arkcpa import (
+        ArkAgentGrant,
+        ArkEntity,
+        ArkEntityAccess,
+        ArkPostingCandidate,
+    )
     from app.models.users import User
 
     requested = request.headers.get("x-ark-entity")
@@ -187,7 +202,65 @@ def _entity_database_for_request(request: HTTPConnection | None) -> str | None:
                 status_code=409,
                 detail="No Ark CPA legal entity is configured for this account",
             )
-        entity, _access = row
+        entity, access = row
+        if not username.startswith("token:") and access.role not in {
+            "admin",
+            "bookkeeper",
+            "readonly",
+        }:
+            raise HTTPException(status_code=403, detail="Invalid entity access role")
+        if request.url.path.startswith("/api/ark-cpa/"):
+            entity_id = request.query_params.get("entity_id")
+            if entity_id is not None and entity_id != str(entity.id):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Activate the requested entity before ledger review",
+                )
+            candidate_path = _CANDIDATE_LEDGER_PATH.fullmatch(request.url.path)
+            if candidate_path:
+                candidate = control.get(
+                    ArkPostingCandidate, int(candidate_path.group(1))
+                )
+                if candidate is not None and candidate.entity_id != entity.id:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Activate the candidate's entity before ledger review",
+                    )
+        method = request.scope.get("method", "GET")
+        if not username.startswith("token:"):
+            from app.main import _role_allows
+
+            if not _role_allows(access.role, method, request.url.path):
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your entity role does not allow this action",
+                )
+            # Legacy route serializers read the session role to redact HR data.
+            # Narrow that request-local view; middleware reloads global authority
+            # from the user table on the next request (including control routes).
+            levels = {"readonly": 0, "bookkeeper": 1, "admin": 2}
+            if (
+                isinstance(request_session, dict)
+                and request_session.get("role") in levels
+            ):
+                request_session["role"] = min(
+                    (request_session["role"], access.role), key=levels.get
+                )
+        review_only = method == "POST" and bool(
+            _LEDGER_REVIEW_POST.fullmatch(request.url.path)
+        )
+        ledger_write = method not in _READ_METHODS and not review_only
+        role_readonly = not username.startswith("token:") and access.role == "readonly"
+        frozen = entity.posting_mode == "frozen" or entity.facts_status == "hold"
+        if ledger_write and role_readonly:
+            raise HTTPException(status_code=403, detail="Read-only entity access")
+        if ledger_write and frozen:
+            raise HTTPException(
+                status_code=409, detail="Entity ledger is frozen or on hold"
+            )
+        # Safe-method and review dependencies are read-only at the database
+        # boundary too, preventing accidental writes behind a GET/review path.
+        request.state.ark_ledger_readonly = not ledger_write or role_readonly or frozen
         if isinstance(request_session, dict):
             request_session["active_entity_id"] = entity.id
             request_session["active_entity_slug"] = entity.slug
@@ -231,6 +304,8 @@ def get_db(request: HTTPConnection = None):
         if database_name is not None
         else SessionLocal()
     )
+    if database_name is not None and request.state.ark_ledger_readonly:
+        _restrict_ledger_session(db)
     _stamp_actor(db, request)
     try:
         yield db
@@ -239,3 +314,20 @@ def get_db(request: HTTPConnection = None):
         raise
     finally:
         db.close()
+
+
+def _restrict_ledger_session(db):
+    """Keep reviewed/read-only dependencies read-only across every transaction."""
+
+    def prohibit_flush(session, _context, _instances):
+        if session.new or session.dirty or session.deleted:
+            raise HTTPException(
+                status_code=403, detail="This ledger request is read-only"
+            )
+
+    def read_only_transaction(session, transaction, connection):
+        if connection.dialect.name == "postgresql":
+            connection.execute(text("SET TRANSACTION READ ONLY"))
+
+    event.listen(db, "before_flush", prohibit_flush)
+    event.listen(db, "after_begin", read_only_transaction)

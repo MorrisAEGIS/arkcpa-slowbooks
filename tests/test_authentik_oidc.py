@@ -90,7 +90,7 @@ def test_public_first_run_setup_is_rejected_when_authentik_is_enabled(
         json={"password": "anything-long-enough"},
     )
     assert response.status_code == 403
-    assert "loopback" in response.json()["detail"].lower()
+    assert "disabled when Authentik is enabled" in response.json()["detail"]
 
 
 def test_callback_rejects_missing_or_mismatched_state(unauthed_client, monkeypatch):
@@ -138,19 +138,17 @@ def test_authentik_start_sets_host_only_lax_attempt_cookies(
 
 
 def test_valid_callback_issues_normal_slowbooks_admin_session(
-    unauthed_client, monkeypatch
+    unauthed_client, monkeypatch, db_session
 ):
     _enable_oidc(monkeypatch)
     monkeypatch.setenv("ARKCPA_WORKSPACE_ID", "jay-private")
     monkeypatch.setenv("ARKCPA_WORKSPACE_LABEL", "Jay's private books")
-    # Local break-glass setup materializes the admin that OIDC maps to.
-    setup = unauthed_client.post(
-        "/api/auth/setup",
-        headers={"host": "testserver"},
-        json={"password": "local-recovery-password"},
-    )
-    assert setup.status_code == 200
-    unauthed_client.post("/api/auth/logout")
+    # The operator seeds the identity through a trusted offline path. HTTP
+    # setup is deliberately unavailable while OIDC is configured.
+    from app.services.auth import ensure_admin_user, set_password
+
+    set_password(db_session, "local-recovery-password")
+    ensure_admin_user(db_session)
 
     config = get_oidc_config(ENV)
     discovery = {

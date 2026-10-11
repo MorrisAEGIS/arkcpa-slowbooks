@@ -38,6 +38,8 @@ class User(Base):
     password_hash = Column(String(512), nullable=False)
     role = Column(String(20), nullable=False, default=ROLE_ADMIN)
     is_active = Column(Boolean, nullable=False, default=True)
+    # Increment on credential/authority changes and logout to revoke signed cookies.
+    session_version = Column(Integer, nullable=False, default=1, server_default="1")
     # OIDC identities are bound by the immutable (issuer, subject) pair.
     # Email and display name are profile attributes only: either can change
     # without silently transferring access to a different Authentik account.

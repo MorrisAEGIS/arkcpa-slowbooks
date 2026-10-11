@@ -142,6 +142,7 @@ def set_password(db: Session, plain: str) -> None:
     )
     if admin is not None and db.query(User).count() == 1:
         admin.password_hash = new_hash
+        admin.session_version = User.session_version + 1
     db.commit()
 
 
@@ -241,6 +242,31 @@ def authenticate(db: Session, password: str, username: str | None = None):
     db.info["acting_username"] = user.username
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()
+    return user
+
+
+def resolve_session_user(db: Session, session: dict):
+    """Resolve current authority; old/incomplete/revoked cookies fail closed."""
+    from app.models.users import User, VALID_ROLES
+
+    identifier, version = session.get("user_id"), session.get("session_version")
+    if (
+        session.get("authenticated") is not True
+        or type(identifier) is not int
+        or type(version) is not int
+        or version < 1
+        or session.get("role") not in VALID_ROLES
+    ):
+        return None
+    user = db.get(User, identifier)
+    if (
+        user is None
+        or not user.is_active
+        or user.role not in VALID_ROLES
+        or user.username != session.get("username")
+        or user.session_version != version
+    ):
+        return None
     return user
 
 

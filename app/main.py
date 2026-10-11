@@ -15,6 +15,7 @@ import re as _re
 import time as _time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -567,8 +568,7 @@ _AUTH_EXEMPT_RE = _re.compile(
 #               backups, companies, migration imports)
 #   readonly    GET/HEAD/OPTIONS only
 #
-# Legacy sessions (issued before the principal model) carry no role and
-# are treated as admin — they belong to the operator by definition.
+# Every signed session must resolve to current, revocable database authority.
 # ---------------------------------------------------------------------------
 _ADMIN_WRITE_PREFIXES = (
     "/api/users",
@@ -611,6 +611,8 @@ def _is_hr_sensitive(path: str) -> bool:
 
 
 def _role_allows(role: str, method: str, path: str) -> bool:
+    if role not in ("admin", "bookkeeper", "readonly"):
+        return False
     if role == "admin":
         return True
     if _is_hr_sensitive(path):
@@ -627,9 +629,85 @@ def _role_allows(role: str, method: str, path: str) -> bool:
     return not path.startswith(_ADMIN_WRITE_PREFIXES)
 
 
+def _allowed_browser_origins() -> set[str]:
+    """Use configured exact origins, never a request/proxy supplied hostname."""
+    origins = set()
+    for value in CORS_ALLOW_ORIGINS:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme in {"http", "https"}
+            and parsed.netloc
+            and not parsed.username
+            and not parsed.password
+            and not parsed.path
+            and not parsed.query
+            and not parsed.fragment
+            and "*" not in value
+        ):
+            origins.add(value)
+    redirect = urlsplit(os.environ.get("AUTHENTIK_OIDC_REDIRECT_URI", ""))
+    if (
+        redirect.scheme in {"http", "https"}
+        and redirect.netloc
+        and not redirect.username
+        and not redirect.password
+        and "*" not in redirect.netloc
+    ):
+        origins.add(f"{redirect.scheme}://{redirect.netloc}")
+    return origins
+
+
+def _untrusted_browser_write(request: Request) -> bool:
+    if request.method in _READ_METHODS:
+        return False
+    # These routes authenticate independent capabilities/signatures. A browser
+    # session cookie is incidental and must not change their authentication.
+    path = request.url.path
+    if (
+        path.startswith("/portal/")
+        or path == "/api/stripe/webhook"
+        or _AUTH_EXEMPT_RE.fullmatch(path)
+    ):
+        return False
+    if request.session.get("authenticated") is not True:
+        return False  # bearer-token clients do not use browser cookies
+    origin = request.headers.get("origin")
+    if origin is not None:
+        return origin not in _allowed_browser_origins()
+    # Browsers send Origin for unsafe requests; fail closed when browser fetch
+    # metadata is present but Origin was suppressed. Native/API clients without
+    # browser metadata retain their existing cookie interface.
+    return "sec-fetch-site" in request.headers
+
+
 @app.middleware("http")
 async def require_session(request: Request, call_next):
     path = request.url.path
+    idle_expired = False
+    if request.session.get("authenticated") is True:
+        from app import database as database_module
+        from app.services.auth import resolve_session_user
+
+        with database_module.SessionLocal() as identity_db:
+            user = resolve_session_user(identity_db, request.session)
+            if user is None:
+                request.session.clear()
+            else:
+                # DB authority wins even if a role was changed outside the UI.
+                request.session["role"] = user.role
+                request.session["display_name"] = user.display_name
+                last = request.session.get("last_activity")
+                if (
+                    SESSION_IDLE_TIMEOUT_SECONDS > 0
+                    and isinstance(last, int)
+                    and int(_time.time()) - last > SESSION_IDLE_TIMEOUT_SECONDS
+                ):
+                    request.session.clear()
+                    idle_expired = True
+    if _untrusted_browser_write(request):
+        return JSONResponse(
+            status_code=403, content={"detail": "Untrusted browser origin"}
+        )
     if (
         path in _AUTH_EXEMPT_EXACT
         or path.startswith(_AUTH_EXEMPT_PREFIXES)
@@ -638,7 +716,7 @@ async def require_session(request: Request, call_next):
         return await call_next(request)
     token_principal = None
     if request.session.get("authenticated") is True:
-        role = request.session.get("role") or "admin"
+        role = request.session.get("role")
     else:
         # Scoped API tokens: non-human principals (agents, integrations)
         # authenticate with `Authorization: Bearer sbp_...` and wear a role
@@ -649,7 +727,13 @@ async def require_session(request: Request, call_next):
         if token_principal is None:
             return JSONResponse(
                 status_code=401,
-                content={"detail": "Not authenticated"},
+                content={
+                    "detail": (
+                        "Session expired (idle timeout)"
+                        if idle_expired
+                        else "Not authenticated"
+                    )
+                },
             )
         # Tokens cannot manage identities — a leaked bookkeeper token must
         # not be able to mint itself an admin token or a user account.
@@ -675,15 +759,7 @@ async def require_session(request: Request, call_next):
     # `last_activity`, so a session that's actively in use never trips this.
     # Disabled when SESSION_IDLE_TIMEOUT_SECONDS = 0 (test harness, dev).
     if SESSION_IDLE_TIMEOUT_SECONDS > 0 and token_principal is None:
-        now = int(_time.time())
-        last = request.session.get("last_activity")
-        if isinstance(last, int) and (now - last) > SESSION_IDLE_TIMEOUT_SECONDS:
-            request.session.clear()
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Session expired (idle timeout)"},
-            )
-        request.session["last_activity"] = now
+        request.session["last_activity"] = int(_time.time())
 
     return await call_next(request)
 
