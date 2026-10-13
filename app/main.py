@@ -22,7 +22,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from app.services.asset_versions import versioned_shell
 from starlette.middleware.sessions import SessionMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -948,13 +949,19 @@ async def health_check():
 
 @app.get("/")
 async def serve_index():
-    return FileResponse(str(index_path))
+    return HTMLResponse(
+        versioned_shell(index_path, static_dir),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/login", include_in_schema=False)
 async def serve_login():
     """Serve the dedicated browser sign-in state from the SPA shell."""
-    return FileResponse(str(index_path))
+    return HTMLResponse(
+        versioned_shell(index_path, static_dir),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/analytics")
