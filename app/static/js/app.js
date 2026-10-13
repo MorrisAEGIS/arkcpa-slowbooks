@@ -77,6 +77,8 @@ const App = {
     },
 
     async navigate(hash) {
+        const navigation = this.navigation = (this.navigation || 0) + 1;
+        const epoch = API.epoch;
         const path = hash.replace('#', '') || '/';
         let route = App.routes[path];
         let param = null;
@@ -101,9 +103,13 @@ const App = {
 
         try {
             const html = await route.render(param);
+            API.assertCurrent(epoch);
+            if (navigation !== this.navigation) return;
             $('#page-content').innerHTML = html;
+            API.bindDOM($('#page-content'));
             App.setStatus(`${route.label} — Ready`);
         } catch (err) {
+            if (err.staleContext || navigation !== this.navigation) return;
             // Server-side detail (err.message and stack) goes to console
             // for devs; the DOM gets a clean user-facing error with a
             // recovery action. Avoid leaking framework internals into
@@ -534,7 +540,7 @@ const App = {
             : { authenticated: true };
         if (!authStatus.authenticated) return;
 
-        await ArkCPA.init(authStatus);
+        if (!await ArkCPA.init(authStatus)) return;
 
         // Make the signed-in human and hard-isolated workspace visible in
         // the shell. This is a security affordance, not decoration: an

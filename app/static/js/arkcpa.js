@@ -3,38 +3,45 @@ const ArkCPA = {
     entities: [],
     activeEntity: null,
     userRole: 'readonly',
+    entityMode: false,
 
     async init(authStatus) {
         this.userRole = (authStatus.user && authStatus.user.role) || 'readonly';
+        let saved;
+        try { saved = JSON.parse(sessionStorage.getItem('arkcpa_context') || 'null'); } catch (_) { saved = null; }
         try {
+            const context = await API.get('/ark-cpa/ui-context');
+            this.entityMode = context.entity_mode;
+            API.setContext(null, context.username);
+            if (!this.entityMode) return true;
             this.entities = await API.get('/ark-cpa/entities');
         } catch (err) {
             console.error('Ark CPA entity bootstrap failed', err);
             this.entities = [];
-            return;
+            const content = document.getElementById('page-content');
+            if (content) content.textContent = 'Company access could not be verified. Refresh to try again.';
+            return false;
         }
         if (!this.entities.length) {
             this._renderSelector();
             if (!window.location.hash || window.location.hash === '#/') {
                 window.location.hash = '#/ark-cpa/entities';
             }
-            return;
+            return true;
         }
-        const saved = localStorage.getItem('arkcpa_entity');
-        const selected = this.entities.find(e => e.slug === saved)
-            || this.entities.find(e => e.active)
-            || this.entities[0];
-        try {
-            await API.post(`/ark-cpa/entities/${encodeURIComponent(selected.slug)}/activate`, {});
-            localStorage.setItem('arkcpa_entity', selected.slug);
+        const available = this.entities.filter(e => e.status !== 'archived');
+        const selected = available.find(e => saved?.principal === API.principal && e.slug === saved.entity)
+            || available.find(e => e.active)
+            || available[0];
+        if (selected) {
+            API.setContext(selected.slug);
             this.activeEntity = selected;
             this.entities.forEach(e => { e.active = e.slug === selected.slug; });
             const statusEntity = document.getElementById('status-company');
             if (statusEntity) statusEntity.textContent = `Entity: ${selected.name}`;
-        } catch (err) {
-            console.error('Ark CPA entity activation failed', err);
         }
         this._renderSelector();
+        return true;
     },
 
     _renderSelector() {
@@ -43,7 +50,7 @@ const ArkCPA = {
             if (select) select.hidden = true;
             return;
         }
-        select.innerHTML = this.entities.map(entity =>
+        select.innerHTML = this.entities.filter(entity => entity.status !== 'archived').map(entity =>
             `<option value="${escapeHtml(entity.slug)}" ${entity.active ? 'selected' : ''}>${escapeHtml(entity.name)}</option>`
         ).join('');
         select.hidden = false;
@@ -56,12 +63,25 @@ const ArkCPA = {
         const select = document.getElementById('ark-entity-select');
         if (select) select.disabled = true;
         try {
-            await API.post(`/ark-cpa/entities/${encodeURIComponent(slug)}/activate`, {});
-            localStorage.setItem('arkcpa_entity', slug);
+            // Revalidate access without changing a shared session cookie.
+            // Read-only staff can select any ledger they may read.
+            const current = await API.get('/ark-cpa/entities');
+            if (!current.some(row => row.slug === slug && row.status !== 'archived')) throw new Error('You no longer have access to that company.');
+            if (API.pendingWrites) throw new Error('A save is still in progress. Wait for it to finish before switching companies.');
+            const dirty = [...document.querySelectorAll('form[data-ark-dirty="true"]')].some(form => form.offsetParent !== null);
+            if (dirty && !confirm('Discard unsaved changes and switch companies?')) return;
+            API.switching = true;
+            API.setContext(slug);
+            document.getElementById('main-area')?.setAttribute('inert', '');
+            document.getElementById('modal-overlay')?.setAttribute('inert', '');
             window.location.reload();
         } catch (err) {
             toast(err.message, 'error');
-            if (select) select.disabled = false;
+        } finally {
+            if (!API.switching && select) {
+                select.value = this.activeEntity?.slug || '';
+                select.disabled = false;
+            }
         }
     },
 
@@ -419,7 +439,7 @@ const ArkCPA = {
         button.disabled = true;
         try {
             const entity = await API.post('/ark-cpa/entities', data);
-            localStorage.setItem('arkcpa_entity', entity.slug);
+            API.setContext(entity.slug);
             window.location.reload();
         } catch (err) {
             toast(err.message, 'error');

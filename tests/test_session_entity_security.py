@@ -176,6 +176,7 @@ def _entity_fixture(
         database_module, "entity_session_factory", lambda name: TestSession
     )
     monkeypatch.delitem(app.dependency_overrides, get_db)
+    client.headers["X-Ark-Entity"] = entity.slug
     return user, entity
 
 
@@ -262,7 +263,7 @@ def test_explicit_review_dependency_is_read_only_even_on_frozen_entity(
                 "type": "http",
                 "method": "POST",
                 "path": path,
-                "headers": [],
+                "headers": [(b"x-ark-entity", b"synthetic-ledger")],
                 "query_string": b"",
                 "session": {"authenticated": True, "username": user.username},
             }

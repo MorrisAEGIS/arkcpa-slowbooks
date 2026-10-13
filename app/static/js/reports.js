@@ -66,75 +66,75 @@ const ReportsPage = {
             ${savedHtml}
             <div class="card-grid">
                 ${Terms.isNonprofit() ? ReportsPage._nonprofitCards() : `
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.profitLoss()">
-                    <div class="card-header">${T('Profit & Loss')}</div>
-                    <p style="font-size:13px; color:var(--gray-500);">${Terms.text('Income vs expenses for a period')}</p>
-                </div>`}
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.profitLossByClass()">
-                    <div class="card-header">${T('P&L by Class')}</div>
-                    <p style="font-size:13px; color:var(--gray-500);">${Terms.text('Income vs expenses split by class')}</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.jobBudgetVsActual()">
-                    <div class="card-header">${T('Job Budget vs Actual')}</div>
-                    <p style="font-size:13px; color:var(--gray-500);">${Terms.text('Budget, committed, actual, projected, variance per job')}</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.jobProfitability()">
-                    <div class="card-header">${T('Job Profitability')}</div>
-                    <p style="font-size:13px; color:var(--gray-500);">${Terms.text('Income, costs and margin per job')}</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.financialStatementsPdf()">
-                    <div class="card-header">Financial Statements Pack (PDF)</div>
-                    <p style="font-size:13px; color:var(--gray-500);">${Terms.text('Profit & Loss + Balance Sheet + Trial Balance, one audit-ready PDF')}</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.fixedAssetReconciliation()">
-                    <div class="card-header">Fixed Asset Reconciliation</div>
-                    <p style="font-size:13px; color:var(--gray-500);">Register totals vs GL by asset type</p>
-                </div>
+                <button type="button" class="card report-card" onclick="ReportsPage.profitLoss()">
+                    <span class="card-header">${T('Profit & Loss')}</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">${Terms.text('Income vs expenses for a period')}</span>
+                </button>`}
+                <button type="button" class="card report-card" onclick="ReportsPage.profitLossByClass()">
+                    <span class="card-header">${T('P&L by Class')}</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">${Terms.text('Income vs expenses split by class')}</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.jobBudgetVsActual()">
+                    <span class="card-header">${T('Job Budget vs Actual')}</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">${Terms.text('Budget, committed, actual, projected, variance per job')}</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.jobProfitability()">
+                    <span class="card-header">${T('Job Profitability')}</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">${Terms.text('Income, costs and margin per job')}</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.financialStatementsPdf()">
+                    <span class="card-header">Financial Statements Pack (PDF)</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">${Terms.text('Profit & Loss + Balance Sheet + Trial Balance, one audit-ready PDF')}</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.fixedAssetReconciliation()">
+                    <span class="card-header">Fixed Asset Reconciliation</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Register totals vs GL by asset type</span>
+                </button>
                 ${Terms.isNonprofit() ? '' : `
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.balanceSheet()">
-                    <div class="card-header">${T('Balance Sheet')}</div>
-                    <p style="font-size:13px; color:var(--gray-500);">${Terms.text('Assets, liabilities, and equity')}</p>
-                </div>`}
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.arAging()">
-                    <div class="card-header">${T('A/R Aging')}</div>
-                    <p style="font-size:13px; color:var(--gray-500);">Outstanding receivables by age</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.apAging()">
-                    <div class="card-header">A/P Aging</div>
-                    <p style="font-size:13px; color:var(--gray-500);">Outstanding payables by age</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.salesTax()">
-                    <div class="card-header">Sales Tax</div>
-                    <p style="font-size:13px; color:var(--gray-500);">Tax collected by invoice</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.generalLedger()">
-                    <div class="card-header">General Ledger</div>
-                    <p style="font-size:13px; color:var(--gray-500);">All journal entries by account</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.incomeByCustomer()">
-                    <div class="card-header">${T('Income by Customer')}</div>
-                    <p style="font-size:13px; color:var(--gray-500);">${Terms.isNonprofit() ? 'Contribution totals per donor' : 'Sales totals per customer'}</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.customerStatementPicker()">
-                    <div class="card-header">${T('Customer Statement')}</div>
-                    <p style="font-size:13px; color:var(--gray-500);">${Terms.text('Invoice/payment history PDF')}</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.trialBalance()">
-                    <div class="card-header">Trial Balance</div>
-                    <p style="font-size:13px; color:var(--gray-500);">Debits and credits by account</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.cashFlow()">
-                    <div class="card-header">Cash Flow</div>
-                    <p style="font-size:13px; color:var(--gray-500);">Operating, investing, financing</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="ReportsPage.report1099()">
-                    <div class="card-header">1099 Summary</div>
-                    <p style="font-size:13px; color:var(--gray-500);">Vendor payments for 1099 filing</p>
-                </div>
-                <div class="card" style="cursor:pointer" onclick="BudgetsPage.showVariance()">
-                    <div class="card-header">Budget vs Actual</div>
-                    <p style="font-size:13px; color:var(--gray-500);">Monthly budget variance analysis</p>
-                </div>
+                <button type="button" class="card report-card" onclick="ReportsPage.balanceSheet()">
+                    <span class="card-header">${T('Balance Sheet')}</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">${Terms.text('Assets, liabilities, and equity')}</span>
+                </button>`}
+                <button type="button" class="card report-card" onclick="ReportsPage.arAging()">
+                    <span class="card-header">${T('A/R Aging')}</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Outstanding receivables by age</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.apAging()">
+                    <span class="card-header">A/P Aging</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Outstanding payables by age</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.salesTax()">
+                    <span class="card-header">Sales Tax</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Tax collected by invoice</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.generalLedger()">
+                    <span class="card-header">General Ledger</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">All journal entries by account</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.incomeByCustomer()">
+                    <span class="card-header">${T('Income by Customer')}</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">${Terms.isNonprofit() ? 'Contribution totals per donor' : 'Sales totals per customer'}</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.customerStatementPicker()">
+                    <span class="card-header">${T('Customer Statement')}</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">${Terms.text('Invoice/payment history PDF')}</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.trialBalance()">
+                    <span class="card-header">Trial Balance</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Debits and credits by account</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.cashFlow()">
+                    <span class="card-header">Cash Flow</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Operating, investing, financing</span>
+                </button>
+                <button type="button" class="card report-card" onclick="ReportsPage.report1099()">
+                    <span class="card-header">1099 Summary</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Vendor payments for 1099 filing</span>
+                </button>
+                <button type="button" class="card report-card" onclick="BudgetsPage.showVariance()">
+                    <span class="card-header">Budget vs Actual</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Monthly budget variance analysis</span>
+                </button>
             </div>`;
     },
 
@@ -982,30 +982,30 @@ ReportsPage.jobBudgetVsActual = async function () {
 // ---------------------------------------------------------------------------
 ReportsPage._nonprofitCards = function () {
     return `
-        <div class="card" style="cursor:pointer" onclick="ReportsPage.statementOfActivities()">
-            <div class="card-header">Statement of Activities</div>
-            <p style="font-size:13px; color:var(--gray-500);">Revenue, releases and expenses, with and without donor restrictions</p>
-        </div>
-        <div class="card" style="cursor:pointer" onclick="ReportsPage.statementOfFinancialPosition()">
-            <div class="card-header">Statement of Financial Position</div>
-            <p style="font-size:13px; color:var(--gray-500);">Assets, liabilities, and net assets by restriction</p>
-        </div>
-        <div class="card" style="cursor:pointer" onclick="ReportsPage.fundBalances()">
-            <div class="card-header">Fund Balances</div>
-            <p style="font-size:13px; color:var(--gray-500);">Each restricted fund: beginning, contributions, spent, released, ending</p>
-        </div>
-        <div class="card" style="cursor:pointer" onclick="ReportsPage.functionalExpenses()">
-            <div class="card-header">Statement of Functional Expenses</div>
-            <p style="font-size:13px; color:var(--gray-500);">Program / management / fundraising by expense account (Form 990 Part IX)</p>
-        </div>
-        <div class="card" style="cursor:pointer" onclick="ReportsPage.pledges()">
-            <div class="card-header">Pledge Report</div>
-            <p style="font-size:13px; color:var(--gray-500);">Promised, received, written off and outstanding by donor and campaign</p>
-        </div>
-        <div class="card" style="cursor:pointer" onclick="ReportsPage.givingStatements()">
-            <div class="card-header">Year-End Giving Statements</div>
-            <p style="font-size:13px; color:var(--gray-500);">One statement per donor for the tax year — print the stack or email them all</p>
-        </div>`;
+        <button type="button" class="card report-card" onclick="ReportsPage.statementOfActivities()">
+                    <span class="card-header">Statement of Activities</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Revenue, releases and expenses, with and without donor restrictions</span>
+                </button>
+        <button type="button" class="card report-card" onclick="ReportsPage.statementOfFinancialPosition()">
+                    <span class="card-header">Statement of Financial Position</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Assets, liabilities, and net assets by restriction</span>
+                </button>
+        <button type="button" class="card report-card" onclick="ReportsPage.fundBalances()">
+                    <span class="card-header">Fund Balances</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Each restricted fund: beginning, contributions, spent, released, ending</span>
+                </button>
+        <button type="button" class="card report-card" onclick="ReportsPage.functionalExpenses()">
+                    <span class="card-header">Statement of Functional Expenses</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Program / management / fundraising by expense account (Form 990 Part IX)</span>
+                </button>
+        <button type="button" class="card report-card" onclick="ReportsPage.pledges()">
+                    <span class="card-header">Pledge Report</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">Promised, received, written off and outstanding by donor and campaign</span>
+                </button>
+        <button type="button" class="card report-card" onclick="ReportsPage.givingStatements()">
+                    <span class="card-header">Year-End Giving Statements</span>
+                    <span class="report-card-description" style="font-size:13px; color:var(--gray-500);">One statement per donor for the tax year — print the stack or email them all</span>
+                </button>`;
 };
 
 ReportsPage.givingStatements = function () {

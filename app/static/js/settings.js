@@ -8,6 +8,7 @@ const SettingsPage = {
         const s = await API.get('/settings');
         setTimeout(() => {
             SettingsPage.loadBackups();
+            SettingsPage.loadRecoveryStatus();
             SettingsPage.loadEmailTemplates();
             SettingsPage.loadAiConfig();
             SettingsPage.loadClasses();
@@ -372,11 +373,13 @@ const SettingsPage = {
                 </div>
 
                 <div class="settings-section">
-                    <h3>Backup / Restore</h3>
+                    <h3>Application backups</h3>
+                    <p>Backups listed here belong to this company. Operator-managed disaster recovery is tracked separately.</p>
                     <div style="display:flex; gap:8px; margin-bottom:12px;">
                         <button type="button" class="btn btn-primary" onclick="SettingsPage.createBackup()">Create Backup</button>
                     </div>
                     <div id="backup-list"></div>
+                    <div id="recovery-status" aria-live="polite"></div>
                 </div>
 
                 <div class="settings-section" id="settings-users" style="display:none;">
@@ -698,7 +701,7 @@ const SettingsPage = {
             const el = $('#backup-list');
             if (!el) return;
             if (backups.length === 0) {
-                el.innerHTML = '<div style="font-size:11px; color:var(--text-muted);">No backups yet.</div>';
+                el.innerHTML = '<p>No application backups are listed for this company. This list does not report operator-managed recovery.</p>';
                 return;
             }
             el.innerHTML = `<div class="table-container"><table>
@@ -712,7 +715,32 @@ const SettingsPage = {
                     </td>
                 </tr>`).join('')}</tbody>
             </table></div>`;
-        } catch (e) { /* ignore */ }
+        } catch (e) {
+            const el = $('#backup-list');
+            if (el && !e.staleContext) el.textContent = 'Application backup status could not be loaded. Refresh to try again.';
+        }
+    },
+
+    async loadRecoveryStatus() {
+        const el = $('#recovery-status');
+        if (!el || ArkCPA.userRole !== 'admin' || !ArkCPA.entityMode) return;
+        try {
+            const status = await API.get('/ark-cpa/recovery-status');
+            if (!el.isConnected) return;
+            if (!status.configured) {
+                el.textContent = 'Operator recovery: status reporting is not connected. Local and offsite recovery are unverified here.';
+                return;
+            }
+            const labels = {verified: 'Verified', stale: 'Verification is older than 36 hours', not_verified: 'Latest backup has not been verified offsite', unavailable: 'No valid verification receipt available'};
+            const describe = row => `${labels[row.status] || labels.unavailable}${row.verified_at ? ` · Last verified ${new Date(row.verified_at).toLocaleString()}` : ''}`;
+            el.innerHTML = `<h4>Operator-managed recovery</h4>
+                <p>Local restore: ${escapeHtml(describe(status.local))}</p>
+                <p>Offsite recovery: ${escapeHtml(describe(status.offsite))}</p>
+                <p>Based on operator verification receipts; this page does not run or restore system backups.</p>`;
+        } catch (err) {
+            if (err.staleContext || !el.isConnected) return;
+            el.textContent = err.status === 403 ? '' : 'Operator recovery status could not be loaded. Verification is unavailable here.';
+        }
     },
 
     async seedTemplates() {

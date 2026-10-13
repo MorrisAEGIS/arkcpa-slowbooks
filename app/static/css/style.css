@@ -112,10 +112,12 @@ body {
  * ======================================================================== */
 
 #topbar {
-    height: var(--topbar-height);
+    min-height: var(--topbar-height);
+    height: auto;
     background: linear-gradient(180deg, #e8edf2 0%, #c8d0dc 100%);
     border-bottom: 1px solid #a0a8b8;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     padding: 0 12px;
     gap: 2px;
@@ -202,7 +204,22 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
 }
+
+.report-card {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+}
+.report-card .card-header,
+.report-card .report-card-description { display: block; }
+.report-card:focus-visible { outline: 2px solid var(--ark-focus, #2563eb); outline-offset: 3px; }
 
 .ark-workspace-chip {
     display: inline-flex;

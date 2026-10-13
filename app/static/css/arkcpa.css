@@ -539,6 +539,21 @@ body {
     .ark-entity-select { min-width: 0; max-width: 150px; }
 }
 
+/* Keep company and sign-out controls available before shortcuts consume
+   the toolbar. The same actions remain in the main navigation. */
+@media (min-width: 768px) and (max-width: 1600px) {
+    #topbar > .tb-btn,
+    #topbar > .tb-sep { display: none; }
+    #topbar { gap: 8px; padding-block: 6px; }
+    .topbar-company { max-width: 170px; }
+    .ark-workspace-chip { max-width: 180px; }
+}
+
+@media (min-width: 768px) and (max-width: 1100px) {
+    #global-search, #topbar-clock, #about-btn, .topbar-company,
+    .ark-workspace-chip { display: none !important; }
+}
+
 @media (max-width: 767px) {
     :root {
         --sidebar-width: min(82vw, 304px);
@@ -555,7 +570,7 @@ body {
         min-height: var(--topbar-height);
         padding: 6px 8px;
         gap: 6px;
-        overflow: hidden;
+        flex-wrap: nowrap;
     }
 
     .mobile-nav-toggle {
@@ -599,6 +614,9 @@ body {
     .topbar-right {
         min-width: 0;
         gap: 4px;
+        flex: 1 1 auto;
+        flex-wrap: nowrap;
+        justify-content: flex-end;
     }
 
     .topbar-right #logout-btn {
@@ -606,6 +624,7 @@ body {
         align-items: center;
         min-height: 44px;
         padding: 0 8px;
+        flex: 0 0 auto;
     }
 
     .ark-entity-select {
@@ -614,6 +633,7 @@ body {
         max-width: none;
         height: 44px;
         font-size: 12px;
+        flex: 0 1 150px;
     }
 
     #main-area {

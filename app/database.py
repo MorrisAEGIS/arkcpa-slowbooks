@@ -127,6 +127,24 @@ def _request_username(request: HTTPConnection | None) -> str | None:
     return None
 
 
+def validate_browser_context(request: HTTPConnection | None) -> None:
+    """An old tab must not submit work as a newly signed-in human."""
+    if request is None:
+        return
+    expected = request.headers.get("x-ark-principal")
+    query_expected = request.query_params.get("_ark_principal")
+    if len(request.query_params.getlist("_ark_principal")) > 1:
+        raise HTTPException(status_code=400, detail="Ambiguous sign-in context")
+    if expected and query_expected and expected != query_expected:
+        raise HTTPException(status_code=409, detail="Sign-in context changed")
+    expected = expected or query_expected
+    if expected and expected != _request_username(request):
+        raise HTTPException(
+            status_code=409,
+            detail="Sign-in changed; reopen this page before continuing",
+        )
+
+
 def _entity_database_for_request(request: HTTPConnection | None) -> str | None:
     """Resolve an authorized entity; never trust the cookie/header alone."""
     if not entity_mode_enabled() or request is None:
@@ -136,6 +154,7 @@ def _entity_database_for_request(request: HTTPConnection | None) -> str | None:
         raise HTTPException(
             status_code=401, detail="An authorized entity principal is required"
         )
+    validate_browser_context(request)
 
     from app.models.api_tokens import ApiToken
     from app.models.arkcpa import (
@@ -147,6 +166,21 @@ def _entity_database_for_request(request: HTTPConnection | None) -> str | None:
     from app.models.users import User
 
     requested = request.headers.get("x-ark-entity")
+    query_entity = request.query_params.get("_ark_entity")
+    method = request.scope.get("method", "GET")
+    if len(request.query_params.getlist("_ark_entity")) > 1:
+        raise HTTPException(status_code=400, detail="Ambiguous company context")
+    if requested and query_entity and requested != query_entity:
+        raise HTTPException(status_code=409, detail="Company context changed")
+    # Native PDF/download navigation cannot set headers. Only safe methods
+    # accept URL context; mutations require an explicit entity header.
+    if method in _READ_METHODS:
+        requested = requested or query_entity
+    elif not requested:
+        raise HTTPException(
+            status_code=400,
+            detail="Ledger changes require an explicit X-Ark-Entity header",
+        )
     request_session = request.scope.get("session")
     if not requested and isinstance(request_session, dict):
         requested = request_session.get("active_entity_slug")
@@ -154,7 +188,7 @@ def _entity_database_for_request(request: HTTPConnection | None) -> str | None:
     control = SessionLocal()
     try:
         if username.startswith("token:"):
-            if not requested:
+            if not request.headers.get("x-ark-entity"):
                 raise HTTPException(
                     status_code=400,
                     detail="Agent requests require an explicit X-Ark-Entity header",
@@ -278,6 +312,7 @@ def _stamp_actor(db, request: HTTPConnection | None) -> None:
 
 def get_control_db(request: HTTPConnection = None):
     """Request-scoped session for identity and Ark CPA control-plane state."""
+    validate_browser_context(request)
     db = SessionLocal()
     _stamp_actor(db, request)
     try:

@@ -10,6 +10,12 @@
  */
 const CompaniesPage = {
     async render() {
+        if (ArkCPA.entityMode) {
+            return `<div class="page-header"><h2>Companies</h2></div>
+                <p>Use the company selector at the top to open an authorized company in this tab.</p>
+                <p>Each legal entity has a separate ledger and access permissions.</p>
+                <p><a class="btn btn-secondary" href="#/ark-cpa/entities">Manage legal entities</a></p>`;
+        }
         const companies = await API.get('/companies');
         let html = `
             <div class="page-header">
@@ -40,6 +46,7 @@ const CompaniesPage = {
     },
 
     showCreate() {
+        if (ArkCPA.entityMode) { App.navigate('#/ark-cpa/entities'); return; }
         openModal('New Company', `
             <form onsubmit="CompaniesPage.create(event)">
                 <div class="form-grid">
@@ -60,6 +67,7 @@ const CompaniesPage = {
 
     async create(e) {
         e.preventDefault();
+        if (ArkCPA.entityMode) { App.navigate('#/ark-cpa/entities'); return; }
         const data = Object.fromEntries(new FormData(e.target).entries());
         if (!data.database_name) delete data.database_name;
         try {

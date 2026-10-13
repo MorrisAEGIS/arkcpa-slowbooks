@@ -428,6 +428,20 @@ def rule_packs():
     }
 
 
+@router.get("/ui-context")
+def ui_context(request: Request, db: Session = Depends(get_control_db)):
+    return {"entity_mode": entity_mode_enabled(), "username": _require_human(request)}
+
+
+@router.get("/recovery-status")
+def recovery_status(request: Request, db: Session = Depends(get_control_db)):
+    _require_admin(request)
+    _require_any_protected_approver(db, request)
+    from app.services.arkcpa_recovery_status import recovery_summary
+
+    return recovery_summary()
+
+
 @router.get("/entities")
 def list_entities(request: Request, db: Session = Depends(get_control_db)):
     kind, name, _role = _principal(request)
