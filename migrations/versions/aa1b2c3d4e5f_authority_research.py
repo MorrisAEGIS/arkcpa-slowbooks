@@ -155,7 +155,20 @@ def upgrade():
                 f"CREATE TRIGGER immutable_authority_truncate BEFORE TRUNCATE ON {table} FOR EACH STATEMENT EXECUTE FUNCTION ark_authority_immutable()"
             )
     elif op.get_bind().dialect.name == "sqlite":
+        conflict_keys = {
+            "ark_source_snapshots": "id = NEW.id OR (source_id = NEW.source_id AND content_hash = NEW.content_hash)",
+            "ark_authority_retrievals": "id = NEW.id OR (attempt_id = NEW.attempt_id AND (event = NEW.event OR (event <> 'started' AND NEW.event <> 'started')))",
+            "ark_authority_reviews": "id = NEW.id",
+            "ark_authority_passages": "id = NEW.id",
+        }
         for table in IMMUTABLE:
+            # SQLite REPLACE does not fire DELETE triggers unless recursive_triggers
+            # is enabled. Guard every PK/unique collision before insertion instead.
+            op.execute(
+                f"CREATE TRIGGER immutable_{table}_insert BEFORE INSERT ON {table} "
+                f"WHEN EXISTS (SELECT 1 FROM {table} WHERE {conflict_keys[table]}) "
+                "BEGIN SELECT RAISE(ABORT, 'Authority evidence is append-only'); END"
+            )
             for action in ("UPDATE", "DELETE"):
                 op.execute(
                     f"CREATE TRIGGER immutable_{table}_{action.lower()} BEFORE {action} ON {table} BEGIN SELECT RAISE(ABORT, 'Authority evidence is append-only'); END"
@@ -174,7 +187,7 @@ def downgrade():
         op.execute("DROP FUNCTION ark_authority_immutable()")
     elif op.get_bind().dialect.name == "sqlite":
         for table in IMMUTABLE:
-            for action in ("update", "delete"):
+            for action in ("insert", "update", "delete"):
                 op.execute(f"DROP TRIGGER immutable_{table}_{action}")
     for table in reversed(IMMUTABLE[1:]):
         op.drop_table(table)

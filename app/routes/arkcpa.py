@@ -1386,7 +1386,6 @@ def list_authority_sources(request: Request, db: Session = Depends(get_control_d
                 "enabled": row.enabled,
                 "capture_rights": row.capture_rights,
                 "allow_model_context": row.allow_model_context,
-                "rights_basis": row.rights_basis,
                 "last_checked_at": (
                     row.last_checked_at.isoformat() if row.last_checked_at else None
                 ),

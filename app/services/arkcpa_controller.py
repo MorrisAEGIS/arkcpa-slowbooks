@@ -445,14 +445,33 @@ def _evidence_facts(control_db: Session, evidence: ArkEvidence) -> dict:
         .order_by(ArkEvidenceFact.fact_key, ArkEvidenceFact.locator)
         .all()
     )
-    return {
-        row.fact_key: {
+    facts = {}
+    for row in rows:
+        fact = {
             "value": row.value,
             "confidence": float(row.confidence),
             "locator": row.locator,
         }
-        for row in rows
-    }
+        prior = facts.get(row.fact_key)
+        if prior is None:
+            facts[row.fact_key] = fact
+        elif prior.get("conflict"):
+            prior["alternatives"].append(fact)
+            prior["confidence"] = min(prior["confidence"], fact["confidence"])
+        elif prior["value"] != fact["value"]:
+            facts[row.fact_key] = {
+                "value": None,
+                "confidence": min(prior["confidence"], fact["confidence"]),
+                "locator": "conflicting verified locations",
+                "conflict": True,
+                "alternatives": [prior, fact],
+            }
+        else:
+            prior["confidence"] = min(prior["confidence"], fact["confidence"])
+            prior.setdefault("supporting_locators", [prior["locator"]]).append(
+                fact["locator"]
+            )
+    return facts
 
 
 def _authority_transaction_date(facts: dict, candidate=None):
@@ -461,6 +480,8 @@ def _authority_transaction_date(facts: dict, candidate=None):
     for key in ("transaction_date", "receipt.date"):
         if key not in facts:
             continue
+        if facts[key].get("conflict"):
+            return None
         value = facts[key].get("value")
         if isinstance(value, dict):
             value = value.get("value")

@@ -220,6 +220,10 @@ def test_url_allowlist(url):
         "fe80::1",
         "::ffff:127.0.0.1",
         "2002:7f00:1::",
+        "224.0.0.1",
+        "239.255.255.250",
+        "ff02::1",
+        "64:ff9b::7f00:1",
     ],
 )
 def test_private_and_mixed_dns_answers_rejected(monkeypatch, address):

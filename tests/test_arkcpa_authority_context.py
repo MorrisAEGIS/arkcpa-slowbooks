@@ -170,3 +170,50 @@ def test_only_verified_matching_transaction_dates_establish_applicability():
         is None
     )
     assert _authority_transaction_date({"receipt.date": {"value": "uncertain"}}) is None
+
+
+@pytest.mark.parametrize(
+    "dates,eligible",
+    [(("2025-12-31", "2026-05-01"), False), (("2026-05-01", "2026-05-01"), True)],
+)
+def test_duplicate_verified_date_locations_do_not_hide_conflicts(
+    client, db_session, seed_accounts, dates, eligible
+):
+    from app.models.arkcpa import ArkEvidenceFact
+    from app.services.arkcpa_controller import (
+        _evidence_facts,
+        _authority_transaction_date,
+    )
+    from tests.test_arkcpa_controller import _seed_entity
+
+    target, _, evidence = _seed_entity(db_session, seed_accounts)
+    target.jurisdiction = "United States / Texas"
+    target.entity_type = "us_tx_llc"
+    for locator, value in zip(("page1", "page2"), dates):
+        db_session.add(
+            ArkEvidenceFact(
+                evidence_id=evidence.id,
+                fact_key="receipt.date",
+                value={"value": value},
+                confidence=1,
+                locator=locator,
+                source_hash=evidence.content_hash,
+                extractor_version="independent-review-regression",
+                status="verified",
+                reviewed_by="reviewer",
+            )
+        )
+    db_session.commit()
+    source = research_source(db_session)
+    snapshot = capture(db_session, source)
+    approve(db_session, snapshot)
+    facts = _evidence_facts(db_session, evidence)
+    selected = _authority_transaction_date(facts)
+    context = tax.authority_context(
+        db_session, entity=target, transaction_date=selected
+    )
+    assert bool(context["citations"]) is eligible
+    if not eligible:
+        assert selected is None
+        assert facts["receipt.date"]["conflict"] is True
+        assert len(facts["receipt.date"]["alternatives"]) == 2

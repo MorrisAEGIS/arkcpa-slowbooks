@@ -31,13 +31,14 @@ changes existing definitions and is never called by GET or refresh.
 Every source starts with `capture_rights=unreviewed` and
 `allow_model_context=false`. Before capture, a named rights reviewer must document
 an applicable public-domain basis or licence, a rights expiry, and whether model
-context use is allowed. A publicly accessible page or `license_note` alone is not
+context use is allowed. Detailed rights notes are visible only through the global
+reviewer endpoint, not the member-facing source catalog. A publicly accessible page or `license_note` alone is not
 permission to reproduce or use it in models. FASB/CPA Handbook or similar paid
 standards need the appropriate licence and separate usage review.
 
 Retrieval requires an exact approved HTTPS host, no user information, no fragment,
 and port 443. The client resolves all A/AAAA addresses, rejects private/special
-addresses, connects to a validated IP, and preserves the original TLS SNI and Host.
+addresses (including multicast, reserved and transition ranges), connects to a validated IP, and preserves the original TLS SNI and Host.
 It verifies the connected peer in production. TLS verification stays enabled;
 ambient proxies, cookies, credentials, compression and redirects are disabled.
 The DNS worker pool is bounded; DNS waits are limited to five seconds. Responses
@@ -63,7 +64,8 @@ New snapshots always have `proposed` status and a draft research proposal. Even 
 first capture has no automatic approval. A source row lock serializes publication
 of identical concurrent captures. PostgreSQL/SQLite migration triggers prohibit
 UPDATE/DELETE of snapshots, retrievals, reviews and passages; PostgreSQL also
-blocks TRUNCATE. These are application/database controls, not protection from a
+blocks TRUNCATE. SQLite BEFORE INSERT guards also refuse PK/unique conflicts so
+REPLACE cannot bypass DELETE triggers with recursive triggers disabled. These are application/database controls, not protection from a
 privileged database administrator disabling triggers.
 
 Source definitions and rights are hash-bound to captures. Material definition or
@@ -108,7 +110,9 @@ not accept caller-supplied citation dictionaries. Eligibility requires all of:
   holding an unexpired review grant.
 - Verified capture, extracted-text and passage hashes.
 - Exact jurisdiction/entity-type/topic match and a verified transaction date
-  inside the reviewer-supplied effective interval.
+  inside the reviewer-supplied effective interval. Conflicting verified facts from
+  different document locations remain explicit alternatives; no last-row selection
+  can hide conflicting dates.
 
 Both Bookkeeper and Controller receive this bundle through all four existing
 context construction paths. The initial proposal uses human-verified

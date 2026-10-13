@@ -211,3 +211,56 @@ def test_sqlite_upgrade_enforces_immutable_history(tmp_path):
         assert conn.execute(
             "SELECT count(*) FROM ark_research_permissions"
         ).fetchone() == (0,)
+
+
+def test_sqlite_replace_cannot_bypass_any_evidence_collision(tmp_path):
+    import sqlite3
+
+    database = tmp_path / "replace.sqlite"
+    cfg = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
+    cfg.attributes["database_url"] = "sqlite:///" + str(database)
+    command.upgrade(cfg, "head")
+    with sqlite3.connect(database) as conn:
+        assert conn.execute("PRAGMA recursive_triggers").fetchone() == (0,)
+        conn.execute(
+            "INSERT INTO ark_authority_sources(id,code,title,jurisdiction,authority_level,url,enabled,created_at) VALUES(1,'SYNTHETIC','Synthetic','Canada','law','https://www.canada.ca/synthetic',1,CURRENT_TIMESTAMP)"
+        )
+        snapshot = "INSERT OR REPLACE INTO ark_source_snapshots(id,source_id,content_hash,retrieved_at,status,snapshot_metadata) VALUES(?,1,?,CURRENT_TIMESTAMP,?,'{}')"
+        attempt = "INSERT OR REPLACE INTO ark_authority_retrievals(id,attempt_id,source_id,snapshot_id,event,requested_by,created_at,source_definition,detail) VALUES(?, ?,1,1,?,'synthetic',CURRENT_TIMESTAMP,'{}','{}')"
+        review = "INSERT OR REPLACE INTO ark_authority_reviews(id,snapshot_id,reviewed_by,reviewed_at,decision,rationale,applicability,definition_hash) VALUES(1,1,'synthetic',CURRENT_TIMESTAMP,?,'Fixture','{}',?)"
+        passage = "INSERT OR REPLACE INTO ark_authority_passages(id,review_id,locator,text,content_hash) VALUES(1,1,'p1',?,?)"
+        conn.execute(snapshot, (1, "a" * 64, "proposed"))
+        conn.execute(attempt, (1, "attempt-one", "succeeded"))
+        conn.execute(review, ("rejected", "b" * 64))
+        conn.execute(passage, ("Original synthetic passage", "c" * 64))
+        conn.commit()
+        cases = [
+            (snapshot, (1, "d" * 64, "current")),  # PK collision
+            (
+                snapshot,
+                (2, "a" * 64, "current"),
+            ),  # different PK, same source/content unique key
+            (attempt, (1, "different-attempt", "started")),  # PK collision
+            (
+                attempt,
+                (2, "attempt-one", "succeeded"),
+            ),  # attempt/event unique collision
+            (attempt, (2, "attempt-one", "failed")),  # terminal partial-index collision
+            (review, ("approved", "d" * 64)),
+            (passage, ("Changed synthetic passage", "d" * 64)),
+        ]
+        for sql, params in cases:
+            with pytest.raises(sqlite3.IntegrityError, match="append-only"):
+                conn.execute(sql, params)
+        assert conn.execute(
+            "SELECT id,status FROM ark_source_snapshots"
+        ).fetchall() == [(1, "proposed")]
+        assert conn.execute(
+            "SELECT event FROM ark_authority_retrievals"
+        ).fetchall() == [("succeeded",)]
+        assert conn.execute(
+            "SELECT decision FROM ark_authority_reviews"
+        ).fetchall() == [("rejected",)]
+        assert conn.execute("SELECT text FROM ark_authority_passages").fetchall() == [
+            ("Original synthetic passage",)
+        ]

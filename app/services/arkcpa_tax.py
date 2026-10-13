@@ -181,9 +181,14 @@ def _validate_url(url: str) -> str:
 def _public_ip(address: str) -> bool:
     try:
         ip = ipaddress.ip_address(address)
-        return ip.is_global and not (
-            ip.version == 6 and (ip.ipv4_mapped or ip.sixtofour or ip.teredo)
-        )
+        return (
+            ip.is_global
+            and not ip.is_multicast
+            and not ip.is_reserved
+            and not ip.is_unspecified
+            and not ip.is_link_local
+            and not ip.is_loopback
+        ) and not (ip.version == 6 and (ip.ipv4_mapped or ip.sixtofour or ip.teredo))
     except ValueError:
         return False
 

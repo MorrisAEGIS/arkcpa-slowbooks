@@ -100,6 +100,12 @@ def test_snapshot_review_requires_own_permission_and_never_promotes(client, db_s
     grant(db_session, "admin", "review")
     detail = client.get(url)
     assert detail.status_code == 200 and PASSAGE in detail.json()["extracted_text"]
+    catalog = client.get("/api/ark-cpa/authority-sources").json()
+    assert "rights_basis" not in catalog["sources"][0]
+    assert (
+        detail.json()["metadata"]["source_definition"]["rights_basis"]
+        == "Synthetic fixture only"
+    )
     response = client.post(
         url + "/reviews",
         json={
