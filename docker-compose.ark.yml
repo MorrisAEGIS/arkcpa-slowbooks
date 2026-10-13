@@ -33,6 +33,16 @@ services:
     build:
       context: .
     restart: unless-stopped
+    # Two-worker OCR/PDF workload and startup measured before sizing these
+    # bounds; see docs/ARKCPA_CONTAINER_CONFINEMENT.md. Native-library debt
+    # remains open: these controls constrain impact, not parser data access.
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m,mode=1777
+    mem_limit: 2g
+    pids_limit: 128
     depends_on:
       postgres:
         condition: service_healthy
