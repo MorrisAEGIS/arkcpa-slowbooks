@@ -164,6 +164,13 @@ const API = {
             event.preventDefault();
             event.stopImmediatePropagation();
             toast(API.contextError().message, 'error');
+            return;
+        }
+        // Transient download anchors may be appended and clicked in the same
+        // JavaScript turn, before MutationObserver can scope their URL.
+        if (type === 'click') {
+            const link = event.target.closest?.('a[href]');
+            if (link) API.scopeLinks(link);
         }
     }, true);
     document.addEventListener('input', event => {
