@@ -17,7 +17,10 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    Index,
+    text,
     JSON,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -397,6 +400,10 @@ class ArkAuthoritySource(Base):
     __table_args__ = (
         UniqueConstraint("code", name="uq_ark_authority_source_code"),
         CheckConstraint(
+            "capture_rights IN ('unreviewed', 'public_domain', 'licensed', 'prohibited')",
+            name="ck_ark_authority_capture_rights",
+        ),
+        CheckConstraint(
             "authority_level IN ('law', 'regulation', 'court', 'administrative', "
             "'proposed', 'lead')",
             name="ck_ark_authority_source_level",
@@ -410,6 +417,15 @@ class ArkAuthoritySource(Base):
     authority_level = Column(String(30), nullable=False, index=True)
     url = Column(String(1000), nullable=False)
     license_note = Column(String(300), nullable=True)
+    capture_rights = Column(
+        String(30), nullable=False, default="unreviewed", server_default="unreviewed"
+    )
+    allow_model_context = Column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    rights_basis = Column(Text, nullable=True)
+    rights_reviewed_by = Column(String(100), nullable=True)
+    rights_valid_until = Column(DateTime(timezone=True), nullable=True)
     enabled = Column(Boolean, nullable=False, default=True)
     last_checked_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
@@ -438,8 +454,132 @@ class ArkSourceSnapshot(Base):
     retrieved_at = Column(DateTime(timezone=True), default=_utcnow, nullable=False)
     effective_from = Column(Date, nullable=True)
     effective_to = Column(Date, nullable=True)
-    status = Column(String(20), nullable=False, default="current", index=True)
+    status = Column(String(20), nullable=False, default="proposed", index=True)
     snapshot_metadata = Column(JSON, nullable=False, default=dict)
+    content = Column(LargeBinary, nullable=True)
+    extracted_text = Column(Text, nullable=True)
+
+
+class ArkResearchPermission(Base):
+    """Explicit global research grants; never inferred from entity membership."""
+
+    __tablename__ = "ark_research_permissions"
+    __table_args__ = (
+        UniqueConstraint("user_id", "permission", name="uq_ark_research_permission"),
+        CheckConstraint(
+            "permission IN ('refresh', 'review')", name="ck_ark_research_permission"
+        ),
+    )
+    id = Column(Integer, primary_key=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    permission = Column(String(20), nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True)
+    granted_by = Column(String(100), nullable=False)
+    granted_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+
+
+class ArkAuthorityRetrieval(Base):
+    """Append-only start and terminal events; crashes leave a visible start."""
+
+    __tablename__ = "ark_authority_retrievals"
+    __table_args__ = (
+        UniqueConstraint(
+            "attempt_id", "event", name="uq_ark_authority_retrieval_event"
+        ),
+        Index(
+            "uq_ark_authority_retrieval_terminal",
+            "attempt_id",
+            unique=True,
+            postgresql_where=text("event <> 'started'"),
+            sqlite_where=text("event <> 'started'"),
+        ),
+        CheckConstraint(
+            "event IN ('started', 'succeeded', 'failed')",
+            name="ck_ark_authority_retrieval_event",
+        ),
+    )
+    id = Column(Integer, primary_key=True)
+    attempt_id = Column(String(36), nullable=False, index=True)
+    source_id = Column(
+        Integer,
+        ForeignKey("ark_authority_sources.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    snapshot_id = Column(
+        Integer,
+        ForeignKey("ark_source_snapshots.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    event = Column(String(20), nullable=False)
+    requested_by = Column(String(100), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    source_definition = Column(JSON, nullable=False)
+    content_hash = Column(String(64), nullable=True)
+    detail = Column(JSON, nullable=False, default=dict)
+
+
+class ArkAuthorityReview(Base):
+    """Append-only research decision; this never promotes a ledger/tax rule."""
+
+    __tablename__ = "ark_authority_reviews"
+    __table_args__ = (
+        CheckConstraint(
+            "decision IN ('approved', 'rejected', 'revoked')",
+            name="ck_ark_authority_review_decision",
+        ),
+    )
+    id = Column(Integer, primary_key=True)
+    snapshot_id = Column(
+        Integer,
+        ForeignKey("ark_source_snapshots.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    reviewed_by = Column(String(100), nullable=False)
+    reviewed_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    decision = Column(String(20), nullable=False)
+    rationale = Column(Text, nullable=False)
+    effective_from = Column(Date, nullable=True)
+    effective_to = Column(Date, nullable=True)
+    valid_until = Column(DateTime(timezone=True), nullable=True)
+    applicability = Column(JSON, nullable=False, default=dict)
+    definition_hash = Column(String(64), nullable=False)
+
+
+class ArkAuthorityPassage(Base):
+    __tablename__ = "ark_authority_passages"
+    id = Column(Integer, primary_key=True)
+    review_id = Column(
+        Integer,
+        ForeignKey("ark_authority_reviews.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    locator = Column(String(300), nullable=False)
+    text = Column(Text, nullable=False)
+    content_hash = Column(String(64), nullable=False)
+
+
+# ORM writes fail closed too. Migration installs DB triggers covering raw SQL.
+from sqlalchemy import event as _event  # noqa: E402
+
+
+def _immutable_authority_record(_mapper, _connection, _target):
+    raise ValueError("Authority evidence is append-only")
+
+
+for _model in (
+    ArkSourceSnapshot,
+    ArkAuthorityRetrieval,
+    ArkAuthorityReview,
+    ArkAuthorityPassage,
+):
+    _event.listen(_model, "before_update", _immutable_authority_record)
+    _event.listen(_model, "before_delete", _immutable_authority_record)
 
 
 class ArkRuleProposal(Base):

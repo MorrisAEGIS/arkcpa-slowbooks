@@ -1,6 +1,6 @@
 """Unified Ark CPA entity, evidence, agent-review, and compliance API."""
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
 import json
@@ -24,6 +24,8 @@ from app.models.arkcpa import (
     ArkAgentDecisionRun,
     ArkAgentGrant,
     ArkAuthoritySource,
+    ArkAuthorityRetrieval,
+    ArkAuthorityReview,
     ArkComplianceObligation,
     ArkControllerIssue,
     ArkControllerRun,
@@ -59,7 +61,8 @@ from app.services.arkcpa_rules import (
 )
 from app.services.arkcpa_tax import (
     refresh_all_authority_sources,
-    seed_authority_sources,
+    require_research_permission,
+    review_authority_snapshot,
 )
 from app.services.company_service import create_company
 from app.services.settings_service import set_setting
@@ -1247,6 +1250,77 @@ def decide_protected_action(
     }
 
 
+def _require_global_research(db: Session, request: Request, permission: str) -> str:
+    # The general middleware may prefer a session over an accompanying token.
+    # Research mutations require an unambiguous human session.
+    if request.headers.get("authorization"):
+        raise HTTPException(
+            status_code=403, detail="Unambiguous human research session required"
+        )
+    try:
+        return require_research_permission(db, _require_human(request), permission)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc)) from exc
+
+
+class AuthorityPassageIn(StrictModel):
+    locator: str = Field(min_length=1, max_length=300)
+    text: str = Field(min_length=20, max_length=3000)
+
+
+class AuthorityReviewIn(StrictModel):
+    decision: Literal["approved", "rejected", "revoked"]
+    rationale: str = Field(min_length=1, max_length=5000)
+    applicability: dict = Field(default_factory=dict)
+    effective_from: date | None = None
+    effective_to: date | None = None
+    valid_until: datetime | None = None
+    passages: list[AuthorityPassageIn] = Field(default_factory=list, max_length=12)
+
+
+@router.get("/authority-sources/snapshots/{snapshot_id}")
+def authority_snapshot_detail(
+    snapshot_id: int, request: Request, db: Session = Depends(get_control_db)
+):
+    _require_global_research(db, request, "review")
+    snapshot = db.get(ArkSourceSnapshot, snapshot_id)
+    if snapshot is None:
+        raise HTTPException(status_code=404, detail="Authority snapshot not found")
+    text_content = snapshot.extracted_text or ""
+    return {
+        "id": snapshot.id,
+        "source_id": snapshot.source_id,
+        "content_hash": snapshot.content_hash,
+        "status": snapshot.status,
+        "metadata": snapshot.snapshot_metadata,
+        "extracted_text": text_content[:200000],
+        "text_truncated": len(text_content) > 200000,
+        "automatic_policy_change": False,
+    }
+
+
+@router.post("/authority-sources/snapshots/{snapshot_id}/reviews", status_code=201)
+def authority_snapshot_review(
+    snapshot_id: int,
+    data: AuthorityReviewIn,
+    request: Request,
+    db: Session = Depends(get_control_db),
+):
+    actor = _require_global_research(db, request, "review")
+    try:
+        review = review_authority_snapshot(
+            db, snapshot_id, reviewed_by=actor, **data.model_dump()
+        )
+    except (ValueError, PermissionError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {
+        "id": review.id,
+        "decision": review.decision,
+        "automatic_policy_change": False,
+    }
+
+
 @router.get("/authority-sources")
 def list_authority_sources(request: Request, db: Session = Depends(get_control_db)):
     name = _require_human(request)
@@ -1258,13 +1332,49 @@ def list_authority_sources(request: Request, db: Session = Depends(get_control_d
     )
     if membership is None:
         raise HTTPException(status_code=403, detail="Ark CPA entity access required")
-    seed_authority_sources(db)
+    can_refresh = False
+    try:
+        require_research_permission(db, name, "refresh")
+        can_refresh = True
+    except PermissionError:
+        pass
     sources = db.query(ArkAuthoritySource).order_by(ArkAuthoritySource.code).all()
     proposals = (
         db.query(ArkRuleProposal).order_by(ArkRuleProposal.id.desc()).limit(250).all()
     )
     return {
         "automatic_policy_change": False,
+        "approval_model": "explicit_review_required",
+        "can_refresh": can_refresh,
+        "retrievals": [
+            {
+                "id": row.id,
+                "attempt_id": row.attempt_id,
+                "source_id": row.source_id,
+                "snapshot_id": row.snapshot_id,
+                "event": row.event,
+                "created_at": row.created_at.isoformat(),
+                "detail": row.detail,
+            }
+            for row in db.query(ArkAuthorityRetrieval)
+            .order_by(ArkAuthorityRetrieval.id.desc())
+            .limit(100)
+            .all()
+        ],
+        "research_reviews": [
+            {
+                "id": row.id,
+                "snapshot_id": row.snapshot_id,
+                "decision": row.decision,
+                "reviewed_at": row.reviewed_at.isoformat(),
+                "valid_until": row.valid_until.isoformat() if row.valid_until else None,
+                "applicability": row.applicability,
+            }
+            for row in db.query(ArkAuthorityReview)
+            .order_by(ArkAuthorityReview.id.desc())
+            .limit(100)
+            .all()
+        ],
         "sources": [
             {
                 "id": row.id,
@@ -1274,15 +1384,14 @@ def list_authority_sources(request: Request, db: Session = Depends(get_control_d
                 "authority_level": row.authority_level,
                 "url": row.url,
                 "enabled": row.enabled,
+                "capture_rights": row.capture_rights,
+                "allow_model_context": row.allow_model_context,
+                "rights_basis": row.rights_basis,
                 "last_checked_at": (
                     row.last_checked_at.isoformat() if row.last_checked_at else None
                 ),
-                "current_hash": (
-                    db.query(ArkSourceSnapshot.content_hash)
-                    .filter_by(source_id=row.id, status="current")
-                    .order_by(ArkSourceSnapshot.retrieved_at.desc())
-                    .scalar()
-                ),
+                "current_hash": None,
+                "research_state": "review_and_applicability_required",
             }
             for row in sources
         ],
@@ -1305,11 +1414,11 @@ def list_authority_sources(request: Request, db: Session = Depends(get_control_d
 def refresh_authority_source_registry(
     request: Request, db: Session = Depends(get_control_db)
 ):
-    requested_by = _require_any_protected_approver(db, request)
+    requested_by = _require_global_research(db, request, "refresh")
     return {
         "requested_by": requested_by,
         "automatic_policy_change": False,
-        "results": refresh_all_authority_sources(db),
+        "results": refresh_all_authority_sources(db, requested_by=requested_by),
     }
 
 

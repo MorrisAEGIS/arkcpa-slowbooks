@@ -293,15 +293,15 @@ const ArkCPA = {
         this.obligations = rows;
         return `<div class="arkcpa-page">
             <div class="page-header"><div><div class="arkcpa-eyebrow">${escapeHtml(this.activeEntity.jurisdiction)}</div><h2>Tax & Compliance</h2></div>
-                ${this.activeEntity.protected_approver ? '<button class="btn btn-secondary" onclick="ArkCPA.refreshAuthority(this)">Check official sources</button>' : ''}</div>
-            <div class="arkcpa-callout">Ark CPA monitors official sources and prepares evidence-backed workpapers. Web changes never become tax rules automatically, and no filing or election is submitted.</div>
+                ${authority.can_refresh ? '<button class="btn btn-secondary" onclick="ArkCPA.refreshAuthority(this)">Check registered sources</button>' : ''}</div>
+            <div class="arkcpa-callout">Registered sources require capture rights and independent review before they can support accounting research. Web changes never become tax rules automatically, and no filing or election is submitted.</div>
             <div class="arkcpa-obligations">${rows.map(row => `<article class="arkcpa-obligation"><div><span>${escapeHtml(String(row.tax_year))}</span><h3>${escapeHtml(row.code)}</h3></div><div><strong>${escapeHtml(row.label)}</strong><p>${escapeHtml(row.authority)}</p></div><span class="arkcpa-state is-hold">${escapeHtml(row.status)}</span></article>`).join('')}</div>
             <div class="arkcpa-grid">
-                <section class="arkcpa-panel"><div class="arkcpa-panel__head"><h3>Authority library</h3><span>${authority.sources.length} official sources</span></div>
-                    <div class="arkcpa-source-list">${authority.sources.map(source => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer"><span>${escapeHtml(source.code)}</span><strong>${escapeHtml(source.title)}</strong><small>${escapeHtml(source.jurisdiction)} · ${source.current_hash ? escapeHtml(source.current_hash.slice(0, 10)) : 'baseline pending'}</small></a>`).join('')}</div>
+                <section class="arkcpa-panel"><div class="arkcpa-panel__head"><h3>Authority library</h3><span>${authority.sources.length} registered sources</span></div>
+                    <div class="arkcpa-source-list">${authority.sources.map(source => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer"><span>${escapeHtml(source.code)}</span><strong>${escapeHtml(source.title)}</strong><small>${escapeHtml(source.jurisdiction)} · Review and applicability required</small></a>`).join('')}</div>
                 </section>
-                <section class="arkcpa-panel"><div class="arkcpa-panel__head"><h3>Detected changes</h3><span>Manual promotion only</span></div>
-                    ${authority.proposals.length ? `<div class="arkcpa-source-list">${authority.proposals.map(row => `<div><span>${escapeHtml(row.status)}</span><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.code)}</small></div>`).join('')}</div>` : '<p class="arkcpa-muted">No official-source change proposals.</p>'}
+                <section class="arkcpa-panel"><div class="arkcpa-panel__head"><h3>Source review queue</h3><span>Research approval only</span></div>
+                    ${authority.proposals.length ? `<div class="arkcpa-source-list">${authority.proposals.map(row => `<div><span>${escapeHtml(row.status)}</span><strong>${escapeHtml(row.title)}</strong><small>${escapeHtml(row.code)}</small></div>`).join('')}</div>` : '<p class="arkcpa-muted">No source captures awaiting review.</p>'}
                 </section>
             </div>
             <section class="arkcpa-panel arkcpa-panel--wide"><div class="arkcpa-panel__head"><h3>Filing workpapers</h3><button class="btn btn-sm btn-primary" onclick="ArkCPA.showWorkpaper()">New draft package</button></div>
@@ -315,10 +315,11 @@ const ArkCPA = {
         button.textContent = 'Checking…';
         try {
             const result = await API.post('/ark-cpa/authority-sources/refresh', {});
-            const changed = result.results.filter(row => row.status === 'change_detected').length;
-            toast(`Official sources checked; ${changed} change proposal${changed === 1 ? '' : 's'}.`);
+            const pending = result.results.filter(row => row.status === 'review_required').length;
+            const failed = result.results.filter(row => row.status === 'failed').length;
+            toast(`Source check: ${pending} captures need review; ${failed} failed or blocked.`, failed ? 'error' : 'success');
             App.navigate('#/ark-cpa/compliance');
-        } catch (err) { toast(err.message, 'error'); button.disabled = false; button.textContent = 'Check official sources'; }
+        } catch (err) { toast(err.message, 'error'); button.disabled = false; button.textContent = 'Check registered sources'; }
     },
 
     showWorkpaper() {

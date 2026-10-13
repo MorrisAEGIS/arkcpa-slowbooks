@@ -26,7 +26,6 @@ from app.services.arkcpa_controller import (
     run_evidence_bookkeeping,
 )
 from app.services.arkcpa_ingestion import scan_and_extract_entity
-from app.services.arkcpa_tax import refresh_all_authority_sources
 
 
 def _args() -> argparse.Namespace:
@@ -141,6 +140,10 @@ def _run_entity(control, entity: ArkEntity, args: argparse.Namespace) -> dict:
 
 
 def run_cycle(args: argparse.Namespace) -> dict:
+    if args.refresh_tax:
+        raise PermissionError(
+            "Authority refresh requires an authenticated human with an explicit global research grant; use the research API"
+        )
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "mode": args.mode,
@@ -169,8 +172,6 @@ def run_cycle(args: argparse.Namespace) -> dict:
                 report["entities"].append(
                     {"entity": entity.slug, "status": "failed", "error": str(exc)[:500]}
                 )
-        if args.refresh_tax:
-            report["tax_sources"] = refresh_all_authority_sources(control)
     return report
 
 

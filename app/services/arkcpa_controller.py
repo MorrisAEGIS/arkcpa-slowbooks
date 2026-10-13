@@ -455,6 +455,27 @@ def _evidence_facts(control_db: Session, evidence: ArkEvidence) -> dict:
     }
 
 
+def _authority_transaction_date(facts: dict, candidate=None):
+    """A proposed candidate date cannot establish legal source applicability."""
+    dates = set()
+    for key in ("transaction_date", "receipt.date"):
+        if key not in facts:
+            continue
+        value = facts[key].get("value")
+        if isinstance(value, dict):
+            value = value.get("value")
+        try:
+            dates.add(date.fromisoformat(value))
+        except (TypeError, ValueError):
+            return None
+    if len(dates) != 1:
+        return None
+    verified_date = dates.pop()
+    if candidate is not None and candidate.transaction_date != verified_date:
+        return None
+    return verified_date
+
+
 def _chart(ledger_db: Session) -> list[dict]:
     return [
         {
@@ -612,6 +633,9 @@ def run_candidate_review(
             evidence_hash=evidence.content_hash,
             extracted_facts=facts,
             chart=chart,
+            authority_db=control_db,
+            authority_entity=entity,
+            authority_date=_authority_transaction_date(facts, candidate),
             candidate=proposal,
         )
         bookkeeper, bookkeeper_response_hash, bookkeeper_identity = call_agent(
@@ -641,6 +665,9 @@ def run_candidate_review(
             evidence_hash=evidence.content_hash,
             extracted_facts=facts,
             chart=chart,
+            authority_db=control_db,
+            authority_entity=entity,
+            authority_date=_authority_transaction_date(facts, candidate),
             candidate=proposal,
         )
         controller, controller_response_hash, controller_identity = call_agent(
@@ -775,6 +802,9 @@ def run_evidence_bookkeeping(
             evidence_hash=evidence.content_hash,
             extracted_facts=facts,
             chart=chart,
+            authority_db=control_db,
+            authority_entity=entity,
+            authority_date=_authority_transaction_date(facts),
         )
         proposal, proposal_response_hash, bookkeeper_identity = (
             call_bookkeeper_proposal(config, context=bookkeeper_context, client=client)
@@ -830,6 +860,9 @@ def run_evidence_bookkeeping(
             evidence_hash=evidence.content_hash,
             extracted_facts=facts,
             chart=chart,
+            authority_db=control_db,
+            authority_entity=entity,
+            authority_date=_authority_transaction_date(facts, candidate),
             candidate=_candidate_context(candidate),
         )
         controller, controller_response_hash, controller_identity = call_agent(

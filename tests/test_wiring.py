@@ -337,6 +337,11 @@ _INTENTIONAL_BACKEND_ONLY: set[tuple[str, str]] = {
     # granted API token; deterministic evaluate/post stays callable by workers
     # and operators but is never simulated by browser JavaScript.
     ("GET", "/api/ark-cpa/rule-packs"),
+    # Researcher-only API for explicit independent review. Review UI is not
+    # shipped yet; these routes have API denial/approval tests and no grants
+    # are provisioned by the web app. See docs/AUTHORITY_RESEARCH.md.
+    ("GET", "/api/ark-cpa/authority-sources/snapshots/{snapshot_id}"),
+    ("POST", "/api/ark-cpa/authority-sources/snapshots/{snapshot_id}/reviews"),
     # Retained for existing API clients. Browser tabs now bind context locally
     # instead of changing a session cookie shared with other open ledgers.
     ("POST", "/api/ark-cpa/entities/{slug}/activate"),

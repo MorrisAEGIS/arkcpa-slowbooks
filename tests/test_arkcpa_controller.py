@@ -258,7 +258,7 @@ def test_agent_call_requires_gateway_model_family_attestation():
 def test_governed_prompt_names_every_required_decision_key():
     prompt = system_prompt("controller")
 
-    assert PROMPT_VERSION == "arkcpa-agents-2026-09-12.2"
+    assert PROMPT_VERSION == "arkcpa-agents-2026-10-13.1"
     for key in ("decision", "confidence", "rationale", "checks"):
         assert f'"{key}"' in prompt
     assert "Do not use a key named" in prompt
