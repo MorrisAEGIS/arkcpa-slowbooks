@@ -107,7 +107,7 @@
         return (
             '<span class="ark-mark" role="img" aria-label="Noah\'s Ark, the ARK mark">' +
             '<span class="ark-mark__aura" aria-hidden="true"></span>' +
-            '<img class="ark-mark__image" src="/static/brand/ark-living-mark.png" alt="">' +
+            '<img class="ark-mark__image" src="/static/brand/etq-living-mark.png" alt="">' +
             '<span class="ark-mark__water" aria-hidden="true"></span>' +
             "</span>"
         );

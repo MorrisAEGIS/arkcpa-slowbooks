@@ -19,8 +19,8 @@ def test_static_shell_declares_ark_cpa_identity_and_icons():
     assert "<h1>Ark CPA</h1>" in html
     assert 'class="auth-pending"' in html
     assert 'id="auth-root"' in html
-    assert 'href="/static/brand/ark-favicon-32.png"' in html
-    assert 'href="/static/brand/ark-apple-touch-icon.png"' in html
+    assert 'href="/static/brand/etq-favicon-32.png"' in html
+    assert 'href="/static/brand/etq-apple-touch-icon.png"' in html
     assert 'href="/static/manifest.webmanifest"' in html
     assert "viewport-fit=cover" in html
 
@@ -38,11 +38,11 @@ def test_login_is_a_dedicated_inert_application_state(unauthed_client):
 def test_ark_assets_and_manifest_are_self_hosted(unauthed_client):
     for path in (
         "/favicon.ico",
-        "/static/brand/ark-living-mark.png",
-        "/static/brand/ark-favicon-32.png",
-        "/static/brand/ark-apple-touch-icon.png",
-        "/static/brand/ark-icon-192.png",
-        "/static/brand/ark-icon-512.png",
+        "/static/brand/etq-living-mark.png",
+        "/static/brand/etq-favicon-32.png",
+        "/static/brand/etq-apple-touch-icon.png",
+        "/static/brand/etq-icon-192.png",
+        "/static/brand/etq-icon-512.png",
         "/static/fonts/Inter-Regular.woff2",
         "/static/fonts/Inter-Medium.woff2",
         "/static/fonts/Inter-SemiBold.woff2",

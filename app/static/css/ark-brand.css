@@ -34,8 +34,8 @@
     --ark-line-faint: oklch(27% 0.014 110);
     --ark-gold: oklch(78% 0.105 84);
     --ark-gold-muted: oklch(64% 0.075 84);
-    --ark-action: oklch(78% 0.11 158);
-    --ark-action-strong: oklch(70% 0.125 158);
+    --ark-action: oklch(78% 0.13 58);
+    --ark-action-strong: oklch(70% 0.145 58);
     --ark-danger: oklch(68% 0.18 28);
     --ark-focus: oklch(84% 0.13 92);
     --ark-font: "Ark Sans", "Segoe UI", sans-serif;
