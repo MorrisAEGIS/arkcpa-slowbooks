@@ -67,6 +67,7 @@ services:
       ARK_FILES_ROOT: /ark-files
       ARKCPA_MAX_EVIDENCE_BYTES: ${ARKCPA_MAX_EVIDENCE_BYTES:-52428800}
       ARKCPA_MAX_SCAN_FILES: ${ARKCPA_MAX_SCAN_FILES:-10000}
+      ARKCPA_RECOVERY_RECEIPT_DIR: /recovery-status
       ARKCPA_AI_BASE_URL: ${ARKCPA_AI_BASE_URL:-}
       ARKCPA_AI_API_KEY: ${ARKCPA_AI_API_KEY:-}
       ARKCPA_AI_ALLOWED_HOSTS: ${ARKCPA_AI_ALLOWED_HOSTS:-litellm,host.docker.internal,127.0.0.1,localhost}
@@ -88,6 +89,7 @@ services:
       - slowbooks_uploads:/app/app/static/uploads
       - slowbooks_backups:/app/backups
       - ${ARK_FILES_ROOT_HOST:-/home/novaadmin/ark-files}:/ark-files:ro
+      - ${ARKCPA_RECOVERY_RECEIPT_HOST:-/home/novaadmin/.local/state/arkcpa/recovery-ui}:/recovery-status:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:

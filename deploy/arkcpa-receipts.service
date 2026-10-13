@@ -1,0 +1,9 @@
+[Unit]
+Description=Publish sanitized CPA recovery verification receipts
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /home/novaadmin/arkcpa-slowbooks/deploy/arkcpa-receipts.py --source /home/novaadmin/artifacts/runtime/arkcpa/backups/encrypted --destination /home/novaadmin/.local/state/arkcpa/recovery-ui
+NoNewPrivileges=true
+PrivateTmp=true
+UMask=0022
