@@ -291,7 +291,7 @@ const EmployeesPage = {
             final_non_confirmation: '#a4242b',
             tnc: '#a4242b',
             photo_match_required: '#a8761f',
-            pending: '#336699',
+            pending: '#B46636',   /* EnerTeq copper (was #B46636 blue) */
         };
         const status = data.status || 'not_submitted';
         const color = STATUS_COLORS[status] || '#666';
@@ -400,7 +400,7 @@ const EmployeesPage = {
         if (Array.isArray(access) && access.length > 0) {
             html += `
                 <details style="margin-top:10px">
-                    <summary style="cursor:pointer;font-size:12px;color:#336699">Recent access (${access.length} most recent)</summary>
+                    <summary style="cursor:pointer;font-size:12px;color:#B46636">Recent access (${access.length} most recent)</summary>
                     <table class="data-table" style="margin-top:6px;font-size:11px">
                         <thead><tr><th scope="col">When</th><th scope="col">IP</th><th scope="col">Path</th><th scope="col">OK?</th></tr></thead>
                         <tbody>
@@ -640,7 +640,7 @@ const EmployeesPage = {
 
         const highlight = (on) => {
             dz.style.background = on ? '#eef4fb' : '#fafbfc';
-            dz.style.borderColor = on ? '#336699' : '#c0c8d0';
+            dz.style.borderColor = on ? '#B46636' : '#c0c8d0';   /* EnerTeq copper (was #B46636 blue) */
         };
 
         // The hidden file input still drives the manual upload path, so a

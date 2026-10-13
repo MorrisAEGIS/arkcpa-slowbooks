@@ -25,7 +25,7 @@
             height: fit-content;
         }
         .portal-header {
-            background: linear-gradient(180deg, #336699 0%, #003366 100%);
+            background: linear-gradient(180deg, #E0925A 0%, #6E3216 100%);   /* EnerTeq copper (was blue gradient) */
             color: white;
             padding: 24px;
         }
@@ -47,19 +47,19 @@
             padding: 12px 16px;
             font-size: 13px;
             font-weight: 600;
-            color: #336699;
+            color: #B46636;   /* EnerTeq copper (was #B46636 blue) */
             text-decoration: none;
             border-bottom: 3px solid transparent;
         }
         .portal-nav a:hover { background: #e8edf3; }
         .portal-nav a.active {
-            color: #003366;
-            border-bottom-color: #003366;
+            color: #B46636;
+            border-bottom-color: #B46636;   /* EnerTeq copper (was navy blue) */
             background: #ffffff;
         }
         .portal-body { padding: 24px; }
-        h2 { font-size: 17px; color: #003366; margin-bottom: 14px; }
-        h3 { font-size: 14px; color: #003366; margin: 20px 0 10px; }
+        h2 { font-size: 17px; color: #B46636; margin-bottom: 14px; }   /* EnerTeq copper */
+        h3 { font-size: 14px; color: #B46636; margin: 20px 0 10px; }   /* EnerTeq copper */
         p { font-size: 14px; line-height: 1.5; }
         .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
         .data-table th, .data-table td {
@@ -124,7 +124,7 @@
         .btn {
             display: inline-block;
             padding: 11px 20px;
-            background: linear-gradient(180deg, #336699 0%, #003366 100%);
+            background: linear-gradient(180deg, #E0925A 0%, #6E3216 100%);   /* EnerTeq copper (was blue gradient) */
             color: white;
             border: none;
             border-radius: 4px;
@@ -133,7 +133,7 @@
             cursor: pointer;
             text-decoration: none;
         }
-        .btn:hover { background: linear-gradient(180deg, #4a7fb5 0%, #336699 100%); }
+        .btn:hover { background: linear-gradient(180deg, #E0925A 0%, #B46636 100%); }
         .pill {
             display: inline-block;
             padding: 2px 9px;
@@ -145,7 +145,7 @@
         .pill-pending { background: #fef3c7; color: #92400e; }
         .pill-approved { background: #d1fae5; color: #065f46; }
         .pill-denied { background: #fee2e2; color: #991b1b; }
-        .pill-active { background: #dbeafe; color: #1e40af; }
+        .pill-active { background: #F7E8D8; color: #6E3216; }
         .pill-inactive { background: #e4e8ee; color: #4a4a6a; }
         .muted { color: #7a7a9a; font-size: 13px; }
         .portal-footer {
@@ -155,7 +155,7 @@
             color: #7a7a9a;
             border-top: 1px solid #eee;
         }
-        a.link { color: #336699; font-weight: 600; }
+        a.link { color: #B46636; font-weight: 600; }
     </style>
 </head>
 <body>
@@ -176,7 +176,7 @@
             <a href="/portal/bank"{% if active == 'bank' %} class="active"{% endif %}>Bank</a>
             <a href="/portal/pto"{% if active == 'pto' %} class="active"{% endif %}>Time Off</a>
             <form method="post" action="/portal/logout" style="margin-left:auto;display:inline">
-                <button type="submit" style="background:none;border:none;padding:12px 16px;font-size:13px;font-weight:600;color:#336699;cursor:pointer">Log out</button>
+                <button type="submit" style="background:none;border:none;padding:12px 16px;font-size:13px;font-weight:600;color:#B46636;cursor:pointer">Log out</button>
             </form>
         </nav>
         <div class="portal-body">

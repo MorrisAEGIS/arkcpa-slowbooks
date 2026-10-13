@@ -52,7 +52,7 @@ const OcrCanvas = {
     FIELD_COLORS: {
         total:    { stroke: '#15803d', fill: 'rgba(134,239,172,0.38)', ink: '#166534', dark: '#14532d' },  // green
         tax:      { stroke: '#c2410c', fill: 'rgba(253,186,116,0.42)', ink: '#9a3412', dark: '#7c2d12' },  // orange
-        subtotal: { stroke: '#1d4ed8', fill: 'rgba(147,197,253,0.42)', ink: '#1e40af', dark: '#1e3a8a' },  // blue
+        subtotal: { stroke: '#B46636', fill: 'rgba(224,146,90,0.42)', ink: '#6E3216', dark: '#B46636' },  /* EnerTeq copper (was blue) */
         date:     { stroke: '#6d28d9', fill: 'rgba(196,181,253,0.45)', ink: '#5b21b6', dark: '#4c1d95' },  // violet
         merchant: { stroke: '#be185d', fill: 'rgba(249,168,212,0.42)', ink: '#9d174d', dark: '#831843' },  // pink
         reference: { stroke: '#0f766e', fill: 'rgba(153,246,228,0.45)', ink: '#115e59', dark: '#134e4a' },  // teal

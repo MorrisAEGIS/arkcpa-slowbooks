@@ -6,12 +6,12 @@
 
 [data-theme="dark"] {
     /* Navy becomes a bright readable blue in dark mode — used for headings, card values */
-    --qb-navy:        #8ab4e0;
-    --qb-navy-dark:   #6a9cc8;
-    --qb-navy-mid:    #5b9bd5;
-    --qb-blue:        #4a7fb5;
-    --qb-blue-light:  #5b9bd5;
-    --qb-blue-accent: #6bb3e8;
+    --qb-navy:        #D9A26B;   /* EnerTeq copper light (dark-mode ink) */
+    --qb-navy-dark:   #E0925A;   /* EnerTeq copper light */
+    --qb-navy-mid:    #B46636;   /* EnerTeq copper core */
+    --qb-blue:        #E0925A;   /* EnerTeq copper light */
+    --qb-blue-light:  #F7CD9F;   /* EnerTeq copper pale */
+    --qb-blue-accent: #D9A26B;   /* EnerTeq copper light */
     --qb-teal:        #7abfbf;
     --qb-green:       #4caf7a;
     --qb-green-dark:  #3d9065;
@@ -29,7 +29,7 @@
     --panel-bg:       #1e2028;
     --panel-border:   #2e3240;
     --input-border:   #3a4050;
-    --input-focus:    #5b9bd5;
+    --input-focus:    #D9A26B;
 
     --text-primary:   #e0e4ec;
     --text-secondary: #a0a8b8;
@@ -142,7 +142,7 @@
 
 /* Table group header rows (Chart of Accounts type headers) */
 [data-theme="dark"] tbody tr[style*="background:linear-gradient"] td {
-    color: #8ab4e0 !important;
+    color: #D9A26B !important;
     background: linear-gradient(180deg, #1e2838 0%, #182030 100%) !important;
 }
 
@@ -167,7 +167,7 @@
 
 /* Dashboard sections */
 [data-theme="dark"] .dashboard-section h3 {
-    color: #b0c4dc;
+    color: #DCC4B0;
 }
 
 /* Empty state */
@@ -204,7 +204,7 @@
 }
 
 [data-theme="dark"] .modal-header {
-    background: linear-gradient(180deg, #2a3648 0%, #1a2332 100%);
+    background: linear-gradient(180deg, #48362A 0%, #1a2332 100%);
 }
 
 [data-theme="dark"] .modal-header h2 { color: #e0e4ec; }
@@ -223,13 +223,13 @@
 }
 
 [data-theme="dark"] .btn-primary {
-    background: linear-gradient(180deg, #2a5a8a 0%, #1e4470 100%);
+    background: linear-gradient(180deg, #8A5A2A 0%, #70441E 100%);
     color: #e0e4ec;
-    border-color: #3a6a9a;
+    border-color: #9A6A3A;
 }
 
 [data-theme="dark"] .btn-primary:hover {
-    background: linear-gradient(180deg, #3a6a9a 0%, #2a5a8a 100%);
+    background: linear-gradient(180deg, #9A6A3A 0%, #8A5A2A 100%);
 }
 
 [data-theme="dark"] .btn-secondary {
@@ -264,7 +264,7 @@
 }
 
 [data-theme="dark"] .settings-section h3 {
-    color: #b0c4dc;
+    color: #DCC4B0;
 }
 
 /* Search */
@@ -333,7 +333,7 @@
 
 /* Badges - keep readable in dark mode */
 [data-theme="dark"] .badge-draft { background: #2a2e38; color: #a0a8b8; border-color: #3a4050; }
-[data-theme="dark"] .badge-sent { background: #1a3a5a; color: #6bb3e8; border-color: #2a5a8a; }
+[data-theme="dark"] .badge-sent { background: #5A3A1A; color: #E0925A; border-color: #8A5A2A; }
 [data-theme="dark"] .badge-paid { background: #1a3a2a; color: #4caf7a; border-color: #2a6a4a; }
 [data-theme="dark"] .badge-recorded { background: #1a3a2a; color: #4caf7a; border-color: #2a6a4a; }
 [data-theme="dark"] .badge-partial { background: #3a3010; color: #e0a840; border-color: #5a5020; }
@@ -358,7 +358,7 @@
 }
 
 /* Inline styles that use hardcoded colors — override common patterns */
-[data-theme="dark"] [style*="color:var(--qb-navy)"] { color: #8ab4e0 !important; }
+[data-theme="dark"] [style*="color:var(--qb-navy)"] { color: #D9A26B !important; }
 [data-theme="dark"] [style*="font-weight:700"] { color: var(--text-primary); }
 
 /* Phase 9: Analytics error box — dark variant */

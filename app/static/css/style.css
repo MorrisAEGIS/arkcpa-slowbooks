@@ -12,7 +12,7 @@
     position: absolute;
     top: -40px;
     left: 0;
-    background: var(--qb-blue, #1e3a8a);
+    background: var(--qb-blue, #B46636);   /* EnerTeq copper fallback (was blue #6E3216) */
     color: #fff;
     padding: 8px 16px;
     z-index: 10000;
@@ -32,12 +32,13 @@
 
 :root {
     /* -- QB2003 "Default Blue" skin palette (extracted via Resource Hacker) -- */
-    --qb-navy:        #003366;
-    --qb-navy-dark:   #002244;
-    --qb-navy-mid:    #004488;
-    --qb-blue:        #336699;
-    --qb-blue-light:  #4a7fb5;
-    --qb-blue-accent: #5b9bd5;
+    /* EnerTeq v2.2 copper identity (OneDrive "Enerteq Logos" canonical; brand-colors.json ramp) */
+    --qb-navy:        #6E3216;   /* was #6E3216 — deep copper (ramp anchor) */
+    --qb-navy-dark:   #582812;   /* was #582812 — deep copper darker */
+    --qb-navy-mid:   #8F4A24;    /* was #8F4A24 — copper mid */
+    --qb-blue:        #B46636;   /* was #B46636 — EnerTeq copper core */
+    --qb-blue-light:  #E0925A;   /* was #E0925A — copper light */
+    --qb-blue-accent: #F7CD9F;   /* was #D9A26B — copper pale */
     --qb-teal:        #669999;
     --qb-green:       #339966;
     --qb-green-dark:  #2d7d56;
@@ -52,12 +53,12 @@
 
     /* -- Chrome colors -- */
     --toolbar-bg:     #d6dfe8;
-    --toolbar-border: #a8b8c8;
+    --toolbar-border: #C8B8A8;
     --content-bg:     #eef1f5;
     --panel-bg:       #ffffff;
     --panel-border:   #c0c8d0;
-    --input-border:   #7f9db9;
-    --input-focus:    #3366cc;
+    --input-border:   #B99B7F;
+    --input-focus:    #B46636;   /* EnerTeq copper (was #B46636 blue) */
 
     /* -- Text -- */
     --text-primary:   #1a1a2e;
@@ -65,7 +66,7 @@
     --text-muted:     #7a7a9a;
     --text-light:     #9a9ab0;
     --text-on-dark:   #e8ecf0;
-    --text-on-navy:   #c8d8e8;
+    --text-on-navy:   #F7CD9F;   /* EnerTeq copper pale (was blue-tint) */
 
     /* -- Functional -- */
     --success:        #339966;
@@ -175,7 +176,7 @@ body {
 
 .tb-btn:hover {
     background: rgba(255,255,255,0.6);
-    border-color: #b0b8c8;
+    border-color: #C8B8B0;
 }
 
 .tb-btn:active {
@@ -188,15 +189,15 @@ body {
     font-size: 15px;
     line-height: 1;
     padding: 2px 12px;
-    color: #4a6fa8;                                  /* cool blue moon */
-    text-shadow: 0 0 6px rgba(74, 111, 168, 0.45);
+    color: #B46636;                                  /* EnerTeq copper (was cool blue moon) */
+    text-shadow: 0 0 6px rgba(180, 102, 54, 0.45);
     transition: color 0.15s, text-shadow 0.15s;
 }
 #theme-toggle:hover {
-    color: #2e4d80;
-    text-shadow: 0 0 10px rgba(74, 111, 168, 0.7);
+    color: #6E3216;                                  /* EnerTeq deep copper (was blue) */
+    text-shadow: 0 0 10px rgba(180, 102, 54, 0.7);
     background: rgba(74, 111, 168, 0.08);
-    border-color: #b0c0d8;
+    border-color: #D8C8B0;
 }
 
 .topbar-right {
@@ -219,7 +220,7 @@ body {
 }
 .report-card .card-header,
 .report-card .report-card-description { display: block; }
-.report-card:focus-visible { outline: 2px solid var(--ark-focus, #2563eb); outline-offset: 3px; }
+.report-card:focus-visible { outline: 2px solid var(--ark-focus, #B46636); outline-offset: 3px; }
 
 .ark-workspace-chip {
     display: inline-flex;
@@ -471,7 +472,7 @@ body {
     align-items: center;
     gap: 4px;
     padding: 4px 12px;
-    border: 1px solid #7f9db9;
+    border: 1px solid #B99B7F;
     border-radius: 3px;
     font-size: 11px;
     font-weight: 400;
@@ -484,7 +485,7 @@ body {
 
 .btn:hover {
     background: linear-gradient(180deg, #f0f4f8 0%, #d8dce4 100%);
-    border-color: #5f7d99;
+    border-color: #99795F;
 }
 
 .btn:active {
@@ -505,7 +506,7 @@ body {
 .btn-secondary {
     background: linear-gradient(180deg, #ffffff 0%, #e8ecf0 100%);
     color: var(--text-primary);
-    border-color: #7f9db9;
+    border-color: #B99B7F;
 }
 
 .btn-secondary:hover {
@@ -575,7 +576,7 @@ thead th.sortable:hover {
 thead th.sort-active {
     color: var(--text-primary);
     font-weight: 800;
-    background: linear-gradient(180deg, #d4dde6 0%, #b8c4d0 100%);
+    background: linear-gradient(180deg, #d4dde6 0%, #D0C4B8 100%);
 }
 thead th .sort-arrow {
     font-size: 9px;
@@ -735,7 +736,7 @@ td.amount, th.amount {
 }
 
 .badge-draft   { background: #e8ecf0; color: #4a5568; border: 1px solid #c8ccd4; }
-.badge-sent    { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.badge-sent    { background: #F7E8D8; color: #6E3216; border: 1px solid #D9A26B; }
 .badge-partial { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
 .badge-paid    { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .badge-recorded { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
@@ -743,8 +744,8 @@ td.amount, th.amount {
 .badge-pending { background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
 .badge-accepted{ background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .badge-rejected{ background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-.badge-converted{background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
-.badge-product { background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd; }
+.badge-converted{background: #F7E8D8; color: #6E3216; border: 1px solid #D9A26B; }
+.badge-product { background: #F7E8D8; color: #6E3216; border: 1px solid #D9A26B; }
 .badge-service { background: #d1fae5; color: #065f46; border: 1px solid #6ee7b7; }
 .badge-material{ background: #fef3c7; color: #92400e; border: 1px solid #fbbf24; }
 .badge-labor   { background: #ede9fe; color: #5b21b6; border: 1px solid #c4b5fd; }
@@ -1841,14 +1842,14 @@ tr.clickable { cursor: pointer; }
  * Phase 9.5b — AI Chat Q&A panel
  * ================================================================ */
 .ai-chat-card {
-    border-left: 3px solid #38bdf8;
+    border-left: 3px solid #E0925A;
 }
 
 .ai-chat-title {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #38bdf8;
+    color: #E0925A;
 }
 
 .ai-chat-messages {
@@ -1978,7 +1979,7 @@ tr.clickable { cursor: pointer; }
 }
 
 .ai-chat-form input:focus {
-    outline: 2px solid #38bdf8;
+    outline: 2px solid #E0925A;
     outline-offset: -1px;
 }
 

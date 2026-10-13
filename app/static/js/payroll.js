@@ -95,7 +95,7 @@ const PayrollPage = {
                 const row = byEmp[empId];
                 if (row) {
                     cell.textContent = `${row.total.toFixed(1)} hrs (${row.entry_count} entries)`;
-                    cell.style.color = '#003366';
+                    cell.style.color = '#B46636';   /* EnerTeq copper (was #6E3216 navy) */
                     cell.style.fontWeight = '600';
                 } else {
                     cell.textContent = '—';

@@ -474,12 +474,12 @@ const AnalyticsPage = {
 
     const palette = [
       "#ff6b6b",
-      "#5b7fff",
+      "#E0925A",
       "#ffa94d",
       "#a855f7",
       "#00c48f",
       "#e879f9",
-      "#38bdf8",
+      "#E0925A",
       "#facc15",
     ];
 
